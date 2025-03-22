@@ -210,7 +210,7 @@ def get_chat_response(user_id):
     global conversatoins
 
     if user_id not in conversations:
-        conversations[user_id] = [SystemMessage(content="You are a helpful AI assistant in a bank app.")]
+        conversations[user_id] = [SystemMessage(content="You are a helpful AI assistant in a bank app. You are an expert in finance and accounting. You reply as concisely as possible.")]
 
     conversation = conversations[user_id]
 
