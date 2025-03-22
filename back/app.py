@@ -204,32 +204,32 @@ def agent():
     data = request.json
     user_id = data.get('user_id')
     message = data.get('input')
+    print(user_id, message)
     
     if not user_id or not message:
         return jsonify({"error": "User ID and message are required."}), 400
     
-    try:
-        # Process message through AI agent
-        result = process_message(user_id, message)
+    # Process message through AI agent
+    result = process_message(user_id, message)
+    
+    # Save conversation history
+    chat_data = {
+        "user_id": user_id,
+        "user_message": message,
+        "ai_response": result["response"],
+        "actions": result.get("actions", []),
+        "created_at": datetime.datetime.now().isoformat()
+    }
+    
+    #supabase.table('chat_history').insert(chat_data).execute()
+    
+    return jsonify({
+        "response": result["response"],
+        "actions": result.get("actions", [])
+    })
         
-        # Save conversation history
-        chat_data = {
-            "user_id": user_id,
-            "user_message": message,
-            "ai_response": result["response"],
-            "actions": result.get("actions", []),
-            "created_at": datetime.datetime.now().isoformat()
-        }
-        
-        supabase.table('chat_history').insert(chat_data).execute()
-        
-        return jsonify({
-            "response": result["response"],
-            "actions": result.get("actions", [])
-        })
-        
-    except Exception as e:
-        return jsonify({"error": f"Error processing AI agent request: {str(e)}"}), 500
+    #except Exception as e:
+        #return jsonify({"error": f"Error processing AI agent request: {str(e)}"}), 500
 
 @app.route('/api/transactions', methods=['POST'])
 def create_transaction():

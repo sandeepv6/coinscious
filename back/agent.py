@@ -111,7 +111,8 @@ def create_agent(user_id: str) -> AgentExecutor:
         return_intermediate_steps=True,
     )
     
-    return agent_executor
+    #return agent_executor
+    return agent
 
 def process_message(user_id: str, message: str) -> Dict[str, Any]:
     """
@@ -128,6 +129,6 @@ def process_message(user_id: str, message: str) -> Dict[str, Any]:
     response = agent.invoke({"input": message, "chat_history": [], "agent_scratchpad": []})
     
     return {
-        "response": response["output"],
+        "response": response.content,
         "actions": [step[0].tool for step in response["intermediate_steps"]] if "intermediate_steps" in response else [],
     }
