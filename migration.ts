@@ -23,8 +23,8 @@ async function runMigration() {
     CREATE TABLE IF NOT EXISTS wallets (
       wallet_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+      debit_balance NUMERIC(12, 2) DEFAULT 100.00,
       credit_balance NUMERIC(12, 2) DEFAULT 0.00,
-      debit_balance NUMERIC(12, 2) DEFAULT 0.00,
       payment_methods JSONB,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
     );
@@ -33,16 +33,19 @@ async function runMigration() {
     CREATE TABLE IF NOT EXISTS transactions (
       transaction_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
+      wallet_id UUID REFERENCES wallets(wallet_id) ON DELETE CASCADE,
       date DATE NOT NULL,
       description TEXT NOT NULL,
       amount NUMERIC(10, 2) NOT NULL,
       category TEXT NOT NULL,
       payment_method TEXT,
+      transaction_type TEXT NOT NULL,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
     );
 
     -- Indexes
     CREATE INDEX IF NOT EXISTS idx_user_id ON transactions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_wallet_id ON transactions(wallet_id);
     CREATE INDEX IF NOT EXISTS idx_transaction_date ON transactions(date);
   `;
 

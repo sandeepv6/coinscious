@@ -53,12 +53,12 @@ function AccountCard({ title, accountNumber, balance, type }: AccountCardProps) 
   );
 }
 
-export default function MainContent() {
+export default function MainContent({ userData, walletData }: { userData: any, walletData: any }) {
   return (
     <div className="flex-1 p-8 bg-gray-100 overflow-y-auto">
       <div className="max-w-3xl mx-auto">
         <div className="flex justify-between items-center mb-8">
-          <h2 className="text-2xl font-bold text-gray-800">Welcome back, Alex</h2>
+          <h2 className="text-2xl font-bold text-gray-800">Welcome back, {userData.first_name}</h2>
           <div className="flex items-center space-x-4">
             <button className="p-2 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors">
               <Bell size={20} className="text-gray-700" />

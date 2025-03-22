@@ -3,7 +3,12 @@
 import { useState } from 'react';
 import { User, CreditCard, TrendingUp, ArrowRight, Bell, Calendar } from 'lucide-react';
 
-export default function RightSidebar() {
+type RightSidebarProps = {
+  userData: any;
+  walletData: any;
+};
+
+export default function RightSidebar({ userData, walletData }: RightSidebarProps) {
   const [transferAmount, setTransferAmount] = useState('');
   const [transferTo, setTransferTo] = useState('');
   const [notifications, setNotifications] = useState([
