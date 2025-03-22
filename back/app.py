@@ -152,6 +152,63 @@ def update_user(user_id):
     response = supabase.table('users').update(user_data).eq('id', user_id).execute()
     return jsonify(response.data[0])
 
+@app.route('/api/transactions', methods=['POST'])
+def create_transaction():
+    transaction_data = request.json
+    user_id = transaction_data.get('user_id')
+    recipient_id = transaction_data.get('recipient')
+    amount = transaction_data.get('amount')
+
+    # Deduct amount from sender's wallet
+    sender_wallet_response = supabase.table('wallets').select('*').eq('user_id', user_id).execute()
+    if not sender_wallet_response.data:
+        return jsonify({"error": "Sender wallet not found"}), 404
+
+    sender_wallet = sender_wallet_response.data[0]
+    if sender_wallet['debit_balance'] < amount:
+        return jsonify({"error": "Insufficient funds"}), 400
+
+    # Update sender's wallet
+    supabase.table('wallets').update({'debit_balance': sender_wallet['debit_balance'] - amount}).eq('user_id', user_id).execute()
+
+    # Add amount to recipient's wallet
+    recipient_wallet_response = supabase.table('wallets').select('*').eq('user_id', recipient_id).execute()
+    if not recipient_wallet_response.data:
+        return jsonify({"error": "Recipient wallet not found"}), 404
+
+    recipient_wallet = recipient_wallet_response.data[0]
+    supabase.table('wallets').update({'debit_balance': recipient_wallet['debit_balance'] + amount}).eq('user_id', recipient_id).execute()
+
+    # Create transaction for sender
+    sender_transaction = {
+        'user_id': user_id,
+        'description': transaction_data.get('description'),
+        'amount': amount,
+        'category': transaction_data.get('category'),
+        'payment_method': 'debit',
+        'created_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        'recipient_id': recipient_id,
+        'note': 'Transfer to ' + recipient_id,
+        'is_fraud': False,
+    }
+    supabase.table('transactions').insert(sender_transaction).execute()
+
+    # Create transaction for recipient
+    recipient_transaction = {
+        'user_id': recipient_id,
+        'description': transaction_data.get('description'),
+        'amount': amount,
+        'category': transaction_data.get('category'),
+        'payment_method': 'debit',
+        #'created_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        'recipient_id': recipient_id,
+        'note': 'Transfer from ' + recipient_id,
+        'is_fraud': False,
+    }
+    supabase.table('transactions').insert(recipient_transaction).execute()
+
+    return jsonify({"message": "Transaction successful"})
+
 @app.route('/api/check-user', methods=['POST'])
 def check_user():
     # Check if user exists by first and last name
