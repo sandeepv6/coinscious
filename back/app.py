@@ -1,7 +1,10 @@
 from flask import Flask, jsonify
+from flask_cors import CORS
 from supabase import create_client
 import os
+
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
 
 # Initialize Supabase client
 supabase_url = os.getenv('SUPABASE_URL')
