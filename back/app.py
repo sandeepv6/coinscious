@@ -5,6 +5,8 @@ import os
 from dotenv import load_dotenv
 import random
 import datetime
+from agent import chat
+from langchain.schema import SystemMessage
 
 load_dotenv()
 
@@ -16,6 +18,15 @@ CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000", "methods": 
 supabase_url = os.getenv('SUPABASE_URL')
 supabase_key = os.getenv('ANON_SUPABASE_KEY')
 supabase = create_client(supabase_url, supabase_key)
+
+
+
+# TRUE BULLSHIT
+conversations = {}
+
+
+
+
 
 # Add CORS headers to all responses
 @app.after_request
@@ -192,6 +203,23 @@ def get_user_wallet(user_id):
     if response.data:
         return jsonify(response.data[0])
     return jsonify({"error": "Wallet not found"}), 404
+
+@app.route('/api/agent/<user_id>', methods=['GET'])
+def get_chat_response(user_id):
+
+    global conversatoins
+
+    if user_id not in conversations:
+        conversations[user_id] = [SystemMessage(content="You are a helpful AI assistant in a bank app.")]
+
+    conversation = conversations[user_id]
+
+    message_info = request.json
+    message = message_info.get("content")
+
+    reply = chat(conversation, message)
+
+    return jsonify({"response": reply})
 
 if __name__ == '__main__':
     app.run(debug=True)
