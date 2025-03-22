@@ -4,8 +4,19 @@ import { useState } from 'react';
 import { User, CreditCard, TrendingUp, ArrowRight, Bell, Calendar } from 'lucide-react';
 
 type RightSidebarProps = {
-  userData: any;
-  walletData: any;
+  userData: {
+    first_name: string;
+    last_name: string;
+    email: string;
+  };
+  walletData: {
+    debit_balance: number;
+    credit_balance: number;
+    payment_methods: {
+      debit_cards: any[];
+      credit_cards: any[];
+    };
+  };
 };
 
 export default function RightSidebar({ userData, walletData }: RightSidebarProps) {
@@ -28,14 +39,13 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
   return (
     <div className="w-80 p-4 mr-4 my-4 space-y-6">
       {/* Profile Card */}
-      <div className="bg-white rounded-xl shadow-sm p-4">
+      <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center space-x-4">
           <div className="w-12 h-12 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-xl">
-            A
+            {userData.first_name.charAt(0)}
           </div>
           <div>
-            <h3 className="font-medium text-gray-800">Alex Johnson</h3>
-            <p className="text-sm text-gray-500">Premium Account</p>
+            <h3 className="font-medium text-gray-800">{userData.first_name} {userData.last_name}</h3>
           </div>
         </div>
         <div className="mt-4 pt-4 border-t border-gray-100">
@@ -43,31 +53,30 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
             <div className="flex flex-col">
               <div className="text-sm text-gray-500">First Name</div>
               <div className="text-sm font-medium border border-gray-200 rounded-lg p-2 bg-white">
-                Alex
+                {userData.first_name}
               </div>
             </div>
             <div className="flex flex-col">
               <div className="text-sm text-gray-500">Last Name</div>
               <div className="text-sm font-medium border border-gray-200 rounded-lg p-2 bg-white">
-                Johnson
+                {userData.last_name}
               </div>
             </div>
             <div className="flex flex-col">
               <div className="text-sm text-gray-500">Email</div>
               <div className="text-sm font-medium border border-gray-200 rounded-lg p-2 bg-white">
-                alex@gmail.com
+                {userData.email}
               </div>
             </div>
           </div>
         </div>
-          <button className="mt-3 w-full py-2 px-4 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
-            View Profile
-          </button>
-        </div>
-      
+        <button className="mt-3 w-full py-2 px-4 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
+          View Profile
+        </button>
+      </div>
 
       {/* Quick Transfer Card */}
-      <div className="bg-white rounded-xl shadow-sm p-4">
+      <div className="bg-white rounded-xl shadow-lg p-6">
         <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
           <ArrowRight size={18} className="mr-2 text-orange-500" />
           Quick Transfer
@@ -119,7 +128,7 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
       </div>
 
       {/* Spending Insights */}
-      <div className="bg-white rounded-xl shadow-sm p-4">
+      <div className="bg-white rounded-xl shadow-lg p-6">
         <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
           <TrendingUp size={18} className="mr-2 text-orange-500" />
           Spending Insights
@@ -170,7 +179,7 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
       </div>
 
       {/* Upcoming Payments */}
-      <div className="bg-white rounded-xl shadow-sm p-4">
+      <div className="bg-white rounded-xl shadow-lg p-6">
         <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
           <Calendar size={18} className="mr-2 text-orange-500" />
           Upcoming Payments
