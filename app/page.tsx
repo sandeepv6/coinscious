@@ -2,22 +2,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useClerk, useSignIn, useSignUp, useUser } from '@clerk/nextjs';
+import { useClerk, useUser } from '@clerk/nextjs';
 import './home.css';
 
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { isSignedIn, isLoaded } = useUser();
-  const { openSignIn, openSignUp } = useClerk();
+  const { openSignIn, signOut } = useClerk();
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  useEffect(() => {
-    // If user is already signed in, redirect to bank page
-    if (isLoaded && isSignedIn) {
-      router.push('/bank');
-    }
-  }, [isLoaded, isSignedIn, router]);
+  // useEffect(() => {
+  //   // If user is already signed in, redirect to bank page
+  //   if (isLoaded && isSignedIn) {
+  //     router.push('/bank');
+  //   }
+  // }, [isLoaded, isSignedIn, router]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -69,41 +69,46 @@ export default function Home() {
     };
   }, []);
 
-  const handleSignIn = () => {
-    setIsModalOpen(true);
-    openSignIn({
-      redirectUrl: '/bank',
-      afterSignInUrl: '/bank',
-      appearance: {
-        elements: {
-          rootBox: "mx-auto",
-          card: "shadow-xl",
-        }
-      },
-    });
-    setIsModalOpen(false);
-  };
-
-  const handleSignUp = () => {
-    setIsModalOpen(true);
-    openSignUp({
-      redirectUrl: '/onboarding',
-      afterSignUpUrl: '/onboarding',
-      appearance: {
-        elements: {
-          rootBox: "mx-auto",
-          card: "shadow-xl",
-        }
-      },
-    });
-    setIsModalOpen(false);
+  const handleAuthAction = () => {
+    if (isSignedIn) {
+      // Log out
+      signOut(() => {
+        router.push('/');
+      });
+    } else {
+      // Log in
+      setIsModalOpen(true);
+      openSignIn({
+        redirectUrl: '/bank',
+        afterSignInUrl: '/bank',
+        appearance: {
+          elements: {
+            rootBox: "mx-auto",
+            card: "shadow-xl",
+          }
+        },
+      });
+      setIsModalOpen(false);
+    }
   };
 
   const handleBankingClick = () => {
     if (isSignedIn) {
       router.push('/bank');
     } else {
-      handleSignIn();
+      // Log in
+      setIsModalOpen(true);
+      openSignIn({
+        redirectUrl: '/bank',
+        afterSignInUrl: '/bank',
+        appearance: {
+          elements: {
+            rootBox: "mx-auto",
+            card: "shadow-xl",
+          }
+        },
+      });
+      setIsModalOpen(false);
     }
   };
 
@@ -145,18 +150,11 @@ export default function Home() {
         transition={{ delay: 1, duration: 1 }}
       >
         <button
-          onClick={handleSignUp}
+          onClick={handleAuthAction}
           className="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
           disabled={isModalOpen}
         >
-          Sign Up
-        </button>
-        <button
-          onClick={handleSignIn}
-          className="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
-          disabled={isModalOpen}
-        >
-          Sign In
+          {isSignedIn ? 'Log Out' : 'Log In'}
         </button>
         <button
           onClick={handleBankingClick}
