@@ -1,11 +1,23 @@
 'use client'
-import Link from 'next/link';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
+import { useClerk, useSignIn, useSignUp, useUser } from '@clerk/nextjs';
 import './home.css';
 
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const { isSignedIn, isLoaded } = useUser();
+  const { openSignIn, openSignUp } = useClerk();
+  const router = useRouter();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    // If user is already signed in, redirect to bank page
+    if (isLoaded && isSignedIn) {
+      router.push('/bank');
+    }
+  }, [isLoaded, isSignedIn, router]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -17,7 +29,7 @@ export default function Home() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    const balls = Array.from({ length: 10 }, () => ({
+    const balls = Array.from({ length: 0 }, () => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
       vx: (Math.random() - 0.5) * 2,
@@ -57,6 +69,55 @@ export default function Home() {
     };
   }, []);
 
+  const handleSignIn = () => {
+    setIsModalOpen(true);
+    openSignIn({
+      redirectUrl: '/bank',
+      afterSignInUrl: '/bank',
+      appearance: {
+        elements: {
+          rootBox: "mx-auto",
+          card: "shadow-xl",
+        }
+      },
+    });
+    setIsModalOpen(false);
+  };
+
+  const handleSignUp = () => {
+    setIsModalOpen(true);
+    openSignUp({
+      redirectUrl: '/onboarding',
+      afterSignUpUrl: '/onboarding',
+      appearance: {
+        elements: {
+          rootBox: "mx-auto",
+          card: "shadow-xl",
+        }
+      },
+    });
+    setIsModalOpen(false);
+  };
+
+  const handleBankingClick = () => {
+    if (isSignedIn) {
+      router.push('/bank');
+    } else {
+      handleSignIn();
+    }
+  };
+
+  if (!isLoaded) {
+    return (
+      <div className="flex min-h-screen bg-gray-100 items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-transparent relative">
       <canvas ref={canvasRef} className="absolute top-0 left-0 z-0" />
@@ -83,24 +144,27 @@ export default function Home() {
         animate={{ opacity: 1 }}
         transition={{ delay: 1, duration: 1 }}
       >
-        <Link
-          href="/sign-up"
+        <button
+          onClick={handleSignUp}
           className="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+          disabled={isModalOpen}
         >
           Sign Up
-        </Link>
-        <Link
-          href="/sign-in"
+        </button>
+        <button
+          onClick={handleSignIn}
           className="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+          disabled={isModalOpen}
         >
           Sign In
-        </Link>
-        <Link
-          href="/bank"
+        </button>
+        <button
+          onClick={handleBankingClick}
           className="px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+          disabled={isModalOpen}
         >
           Go to Online Banking
-        </Link>
+        </button>
       </motion.div>
     </div>
   );

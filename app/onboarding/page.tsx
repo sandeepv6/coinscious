@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import Onboarding from '../components/onboarding';
@@ -9,7 +9,43 @@ export default function OnboardingPage() {
   const { user, isLoaded: isUserLoaded } = useUser();
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Check if user already exists in database
+    const checkUserExists = async () => {
+      if (!isUserLoaded || !user) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // Check if user exists in Supabase by Clerk ID
+        const response = await fetch(`http://localhost:5000/api/check-user-by-clerk/${user.id}`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to check user in database');
+        }
+        
+        const data = await response.json();
+        
+        if (data.exists) {
+          // User already exists, redirect to bank page
+          router.push('/bank');
+          return;
+        }
+        
+        // User doesn't exist, show onboarding form
+        setLoading(false);
+      } catch (error) {
+        console.error('Error checking user:', error);
+        setError('Failed to check if user exists');
+        setLoading(false);
+      }
+    };
+
+    checkUserExists();
+  }, [isUserLoaded, user, router]);
 
   const handleOnboardingComplete = async (data: {
     firstName: string;
@@ -55,7 +91,7 @@ export default function OnboardingPage() {
     }
   };
 
-  if (!isUserLoaded) {
+  if (!isUserLoaded || loading) {
     return (
       <div className="flex min-h-screen bg-gray-100 items-center justify-center">
         <div className="text-center">
@@ -92,13 +128,6 @@ export default function OnboardingPage() {
               >
                 ×
               </button>
-            </div>
-          )}
-          
-          {loading && (
-            <div className="mt-4 text-center">
-              <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-              <p className="text-gray-600 mt-2">Setting up your account...</p>
             </div>
           )}
         </div>
