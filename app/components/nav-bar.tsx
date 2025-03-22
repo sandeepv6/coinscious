@@ -49,32 +49,33 @@ export default function NavBar() {
   };
 
   return (
-    <nav className="h-screen w-64 bg-gray-100 p-4 ml-4 my-4 rounded-lg shadow-sm">
-      <div className="p-4 border-b border-gray-200">
-        <h1 className="text-2xl font-bold text-gray-800">MyBank</h1>
-      </div>
-      <div className="py-4">
-        <Link href="/bank" className="block px-4 py-2 text-orange-600 font-medium hover:bg-orange-50 rounded">
-          Dashboard
+    <nav className="h-screen w-72 bg-gray-100 p-4 ml-4 my-4 rounded-xl shadow-sm">
+      <div className="p-4 mb-4 bg-gray-800 rounded-lg shadow-md">
+        <Link href="/bank">
+            <h1 className="text-2xl font-bold text-white">Dashboard</h1>
         </Link>
-        
+      </div>
+      
+      <div className="space-y-4">
         {sections.map((section, index) => (
-          <div key={section.title} className="mt-4">
+          <div key={section.title} className="bg-white rounded-lg shadow-sm overflow-hidden">
             <button 
               onClick={() => toggleSection(index)}
-              className="w-full flex justify-between items-center px-4 py-2 text-gray-800 font-semibold hover:bg-orange-50 rounded"
+              className="w-full flex justify-between items-center px-4 py-3 text-gray-800 font-semibold hover:bg-orange-50 transition-colors"
             >
               <span>{section.title}</span>
-              <span>{section.isOpen ? '−' : '+'}</span>
+              <span className="bg-gray-100 w-6 h-6 rounded-full flex items-center justify-center">
+                {section.isOpen ? '−' : '+'}
+              </span>
             </button>
             
             {section.isOpen && (
-              <div className="mt-1 space-y-1">
+              <div className="bg-gray-50 rounded-b-lg">
                 {section.items.map((item) => (
                   <Link 
                     key={item.name}
                     href={item.path}
-                    className="block px-8 py-2 text-sm text-gray-600 hover:bg-orange-100 hover:text-orange-700 rounded-md"
+                    className="block px-6 py-2 text-sm text-gray-600 hover:bg-orange-100 hover:text-orange-700 transition-colors"
                   >
                     {item.name}
                   </Link>
@@ -83,6 +84,14 @@ export default function NavBar() {
             )}
           </div>
         ))}
+      </div>
+      
+      <div className="mt-8 p-4 bg-gradient-to-r from-orange-400 to-yellow-400 rounded-lg text-white shadow-md">
+        <h3 className="font-medium mb-2">Need Help?</h3>
+        <p className="text-sm mb-3">Contact our customer support team for assistance with your banking needs.</p>
+        <button className="bg-white text-orange-500 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-100 transition-colors">
+          Contact Support
+        </button>
       </div>
     </nav>
   );
