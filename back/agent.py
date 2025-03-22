@@ -1,4 +1,4 @@
-from langchain_google_genai import GoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents import Tool, AgentExecutor, create_openai_functions_agent
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.memory import ConversationBufferMemory
@@ -29,12 +29,13 @@ def create_agent(user_id: str) -> AgentExecutor:
         An AgentExecutor instance configured with finance tools.
     """
     # Initialize the Gemini model
-    llm = GoogleGenerativeAI(
-        model="gemini-pro",
-        google_api_key=GEMINI_API_KEY,
-        temperature=0.2,
-    )
-    
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.0-flash",
+        temperature=0,
+        max_tokens=None,
+        timeout=None,
+        max_retries=2,
+    )    
     # Define the tools available to the agent
     tools = [
         Tool(
@@ -98,7 +99,8 @@ def create_agent(user_id: str) -> AgentExecutor:
     )
     
     # Create the agent
-    agent = create_openai_functions_agent(llm, tools, prompt)
+    agent = prompt | llm.bind_tools(tools)
+
     
     # Create the agent executor
     agent_executor = AgentExecutor(
@@ -123,7 +125,7 @@ def process_message(user_id: str, message: str) -> Dict[str, Any]:
         A dictionary containing the agent's response and any actions performed.
     """
     agent = create_agent(user_id)
-    response = agent.invoke({"input": message})
+    response = agent.invoke({"input": message, "chat_history": [], "agent_scratchpad": []})
     
     return {
         "response": response["output"],
