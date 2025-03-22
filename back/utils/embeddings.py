@@ -16,7 +16,7 @@ def get_embedding_model():
     
     # 임베딩 모델 초기화
     embeddings = GoogleGenerativeAIEmbeddings(
-        model="embedding-001",  # Gemini의 임베딩 모델
+        model="models/text-embedding-004",  # Gemini의 임베딩 모델
         google_api_key=gemini_api_key
     )
     
