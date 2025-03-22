@@ -5,6 +5,8 @@ import os
 from dotenv import load_dotenv
 import random
 import datetime
+from agent import process_message
+from tools.search_notes import save_note_embedding
 
 load_dotenv()
 
@@ -192,6 +194,96 @@ def get_user_wallet(user_id):
     if response.data:
         return jsonify(response.data[0])
     return jsonify({"error": "Wallet not found"}), 404
+
+# 새로운 AI 에이전트 엔드포인트 추가
+@app.route('/api/agent', methods=['POST'])
+def agent():
+    """
+    Endpoint for interacting with the AI agent
+    """
+    data = request.json
+    user_id = data.get('user_id')
+    message = data.get('input')
+    
+    if not user_id or not message:
+        return jsonify({"error": "User ID and message are required."}), 400
+    
+    try:
+        # Process message through AI agent
+        result = process_message(user_id, message)
+        
+        # Save conversation history
+        chat_data = {
+            "user_id": user_id,
+            "user_message": message,
+            "ai_response": result["response"],
+            "actions": result.get("actions", []),
+            "created_at": datetime.datetime.now().isoformat()
+        }
+        
+        supabase.table('chat_history').insert(chat_data).execute()
+        
+        return jsonify({
+            "response": result["response"],
+            "actions": result.get("actions", [])
+        })
+        
+    except Exception as e:
+        return jsonify({"error": f"Error processing AI agent request: {str(e)}"}), 500
+
+@app.route('/api/transactions', methods=['POST'])
+def create_transaction():
+    """
+    Endpoint for creating a new transaction
+    """
+    transaction_data = request.json
+    
+    if not transaction_data.get('user_id') or not transaction_data.get('amount'):
+        return jsonify({"error": "User ID and amount are required."}), 400
+    
+    try:
+        # Save transaction record
+        transaction_response = supabase.table('transactions').insert(transaction_data).execute()
+        
+        if not transaction_response.data:
+            return jsonify({"error": "Failed to create transaction"}), 500
+        
+        created_transaction = transaction_response.data[0]
+        
+        # Create and save embedding if note exists
+        if transaction_data.get('note'):
+            save_note_embedding(
+                transaction_id=created_transaction['id'],
+                note=transaction_data['note'],
+                user_id=transaction_data['user_id'],
+                amount=transaction_data['amount'],
+                category=transaction_data.get('category', 'Other')
+            )
+        
+        return jsonify({
+            "success": True, 
+            "transaction": created_transaction
+        })
+        
+    except Exception as e:
+        return jsonify({"error": f"Error creating transaction: {str(e)}"}), 500
+
+@app.route('/api/transactions/<user_id>', methods=['GET'])
+def get_user_transactions(user_id):
+    """
+    Endpoint for retrieving a user's transaction history
+    """
+    try:
+        # Query transaction history
+        response = supabase.table('transactions').select('*').eq('user_id', user_id).order('created_at', desc=True).execute()
+        
+        return jsonify({
+            "success": True,
+            "transactions": response.data
+        })
+        
+    except Exception as e:
+        return jsonify({"error": f"Error retrieving transaction history: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
