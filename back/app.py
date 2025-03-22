@@ -124,6 +124,7 @@ def create_user():
         "user_id": created_user['user_id'],
         "debit_balance": 100.00,  # Starting with $100
         "credit_balance": 0.00,   # Starting with $0
+        "saving_balance": 0.00,   # Starting with $0
         "payment_methods": {
             "debit_cards": [debit_card],
             "credit_cards": [credit_card]
@@ -192,6 +193,15 @@ def get_user_wallet(user_id):
     if response.data:
         return jsonify(response.data[0])
     return jsonify({"error": "Wallet not found"}), 404
+
+@app.route('/api/transactions/<user_id>', methods=['GET'])
+def get_user_transactions(user_id):
+    # Get a user's transactions
+    response = supabase.table('transactions').select('*').eq('user_id', user_id).order('created_at', desc=True).execute()
+    
+    if response.data:
+        return jsonify(response.data)
+    return jsonify([])
 
 if __name__ == '__main__':
     app.run(debug=True)
