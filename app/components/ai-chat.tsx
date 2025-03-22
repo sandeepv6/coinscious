@@ -97,7 +97,7 @@ export default function AiChat() {
 
       {/* Chat window */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-80 sm:w-96 h-96 bg-white rounded-lg shadow-xl flex flex-col overflow-hidden z-40 border border-gray-200">
+        <div className="fixed bottom-24 right-6 w-80 sm:w-96 h-3/4 bg-white rounded-lg shadow-xl flex flex-col overflow-hidden z-40 border border-gray-200">
           {/* Chat header */}
           <div className="bg-orange-500 text-white p-3 flex justify-between items-center">
             <h3 className="font-medium">Banking Assistant</h3>

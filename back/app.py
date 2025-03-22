@@ -135,6 +135,7 @@ def create_user():
         "user_id": created_user['user_id'],
         "debit_balance": 100.00,  # Starting with $100
         "credit_balance": 0.00,   # Starting with $0
+        "saving_balance": 0.00,   # Starting with $0
         "payment_methods": {
             "debit_cards": [debit_card],
             "credit_cards": [credit_card]
@@ -161,6 +162,84 @@ def update_user(user_id):
     user_data = request.json
     response = supabase.table('users').update(user_data).eq('id', user_id).execute()
     return jsonify(response.data[0])
+
+@app.route('/api/transactions', methods=['POST'])
+def create_transaction():
+    transaction_data = request.json
+    user_id = transaction_data.get('user_id')
+    recipient_id = transaction_data.get('recipient_id')
+    amount = transaction_data.get('amount')
+
+    # Debug logging
+    print(f"Transaction data: {transaction_data}")
+    print(f"User ID: {user_id}, Recipient ID: {recipient_id}, Amount: {amount}")
+
+    if not user_id or not recipient_id or not amount:
+        return jsonify({"error": "Missing required fields"}), 400
+
+    # Deduct amount from sender's wallet
+    sender_wallet_response = supabase.table('wallets').select('*').eq('user_id', user_id).execute()
+    if not sender_wallet_response.data:
+        return jsonify({"error": "Sender wallet not found"}), 404
+
+    sender_wallet = sender_wallet_response.data[0]
+    if sender_wallet['debit_balance'] < amount:
+        return jsonify({"error": "Insufficient funds"}), 400
+
+    # Update sender's wallet
+    supabase.table('wallets').update({'debit_balance': sender_wallet['debit_balance'] - amount}).eq('user_id', user_id).execute()
+
+    # Add amount to recipient's wallet
+    recipient_wallet_response = supabase.table('wallets').select('*').eq('user_id', recipient_id).execute()
+    if not recipient_wallet_response.data:
+        return jsonify({"error": "Recipient wallet not found"}), 404
+
+    recipient_wallet = recipient_wallet_response.data[0]
+    supabase.table('wallets').update({'debit_balance': recipient_wallet['debit_balance'] + amount}).eq('user_id', recipient_id).execute()
+
+    # Create transaction for sender (expense)
+    sender_transaction = {
+        'user_id': user_id,
+        'description': transaction_data.get('description', 'Transfer to recipient'),
+        'amount': amount,
+        'category': transaction_data.get('category', 'transfer'),
+        'payment_method': transaction_data.get('payment_method', 'debit'),
+        'recipient': recipient_id,
+        'note': transaction_data.get('note', f'Transfer to user {recipient_id}'),
+        'is_fraud': False
+    }
+    
+    sender_response = supabase.table('transactions').insert(sender_transaction).execute()
+    
+    if not sender_response.data:
+        # Rollback the wallet changes if transaction creation fails
+        supabase.table('wallets').update({'debit_balance': sender_wallet['debit_balance']}).eq('user_id', user_id).execute()
+        supabase.table('wallets').update({'debit_balance': recipient_wallet['debit_balance']}).eq('user_id', recipient_id).execute()
+        return jsonify({"error": "Failed to create sender transaction"}), 500
+
+    # Create transaction for recipient (income)
+    recipient_transaction = {
+        'user_id': recipient_id,
+        'description': transaction_data.get('description', 'Transfer from sender'),
+        'amount': amount,
+        'category': transaction_data.get('category', 'transfer'),
+        'payment_method': transaction_data.get('payment_method', 'debit'),
+        'recipient': user_id,
+        'note': transaction_data.get('note', f'Transfer from user {user_id}'),
+        'is_fraud': False
+    }
+    
+    recipient_response = supabase.table('transactions').insert(recipient_transaction).execute()
+    
+    if not recipient_response.data:
+        # Log the error but don't rollback since the sender transaction was successful
+        print("Failed to create recipient transaction")
+
+    return jsonify({
+        "message": "Transaction successful",
+        "sender_transaction": sender_response.data[0] if sender_response.data else None,
+        "recipient_transaction": recipient_response.data[0] if recipient_response.data else None
+    })
 
 @app.route('/api/check-user', methods=['POST'])
 def check_user():
@@ -220,6 +299,25 @@ def get_chat_response(user_id):
     reply = chat(conversation, message)
 
     return jsonify({"response": reply})
+  
+  
+@app.route('/api/transactions/<user_id>', methods=['GET'])
+def get_user_transactions(user_id):
+    # Get a user's transactions
+    response = supabase.table('transactions').select('*').eq('user_id', user_id).order('created_at', desc=True).execute()
+    
+    if response.data:
+        # Add a transaction_type field based on whether the user is the recipient
+        for transaction in response.data:
+            # If the user is the recipient, it's income, otherwise it's an expense
+            if transaction.get('recipient') != user_id:
+                transaction['transaction_type'] = 'expense'
+            else:
+                transaction['transaction_type'] = 'income'
+        
+        return jsonify(response.data)
+    return jsonify([])
+
 
 if __name__ == '__main__':
     app.run(debug=True)

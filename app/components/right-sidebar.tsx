@@ -1,41 +1,110 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User, CreditCard, TrendingUp, ArrowRight, Bell, Calendar } from 'lucide-react';
 
 type RightSidebarProps = {
-  userData: any;
-  walletData: any;
+  userData: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    user_id: string;
+  };
+  walletData: {
+    debit_balance: number;
+    credit_balance: number;
+    payment_methods: {
+      debit_cards: any[];
+      credit_cards: any[];
+    };
+  };
 };
 
 export default function RightSidebar({ userData, walletData }: RightSidebarProps) {
   const [transferAmount, setTransferAmount] = useState('');
   const [transferTo, setTransferTo] = useState('');
+  const [users, setUsers] = useState([]);
   const [notifications, setNotifications] = useState([
     { id: 1, text: 'Your bill payment of $120.45 was successful', time: '2 hours ago' },
     { id: 2, text: 'New statement is available for your credit card', time: '1 day ago' },
     { id: 3, text: 'Unusual activity detected on your account', time: '3 days ago' },
   ]);
 
-  const handleQuickTransfer = (e: React.FormEvent) => {
+  useEffect(() => {
+    // Fetch all users from the database
+    const fetchUsers = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/users');
+        const data = await response.json();
+        setUsers(data.filter((user: any) => user.user_id !== userData.user_id)); // Exclude current user
+      } catch (error) {
+        console.error('Error fetching users:', error);
+      }
+    };
+
+    fetchUsers();
+  }, [userData.user_id]);
+
+  const handleQuickTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle transfer logic here
-    alert(`Transfer of $${transferAmount} to ${transferTo} initiated!`);
-    setTransferAmount('');
-    setTransferTo('');
+    
+    if (!transferTo || !transferAmount) {
+      alert("Please select a recipient and enter an amount");
+      return;
+    }
+    
+    try {
+      console.log("Selected recipient ID:", transferTo);
+      console.log("Transfer amount:", transferAmount);
+      
+      // Create a transaction
+      const transaction = {
+        user_id: userData.user_id,
+        recipient_id: transferTo,
+        amount: parseFloat(transferAmount),
+        description: 'Quick Transfer',
+        category: 'transfer',
+        payment_method: 'debit',
+        note: `Transfer to user ${transferTo}`
+      };
+
+      console.log("Sending transaction data:", transaction);
+
+      const response = await fetch('http://localhost:5000/api/transactions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(transaction),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create transaction');
+      }
+
+      alert(`Transfer of $${transferAmount} to user ID ${transferTo} successful!`);
+      setTransferAmount('');
+      setTransferTo('');
+      
+      // Optionally refresh the page or update the wallet balance
+      window.location.reload();
+    } catch (error) {
+      console.error('Error during transfer:', error);
+      alert(`Transfer failed: ${error.message}`);
+    }
   };
 
   return (
     <div className="w-80 p-4 mr-4 my-4 space-y-6">
       {/* Profile Card */}
-      <div className="bg-white rounded-xl shadow-sm p-4">
+      <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center space-x-4">
           <div className="w-12 h-12 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-xl">
-            A
+            {userData.first_name.charAt(0)}
           </div>
           <div>
-            <h3 className="font-medium text-gray-800">Alex Johnson</h3>
-            <p className="text-sm text-gray-500">Premium Account</p>
+            <h3 className="font-medium text-gray-800">{userData.first_name} {userData.last_name}</h3>
           </div>
         </div>
         <div className="mt-4 pt-4 border-t border-gray-100">
@@ -43,31 +112,30 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
             <div className="flex flex-col">
               <div className="text-sm text-gray-500">First Name</div>
               <div className="text-sm font-medium border border-gray-200 rounded-lg p-2 bg-white">
-                Alex
+                {userData.first_name}
               </div>
             </div>
             <div className="flex flex-col">
               <div className="text-sm text-gray-500">Last Name</div>
               <div className="text-sm font-medium border border-gray-200 rounded-lg p-2 bg-white">
-                Johnson
+                {userData.last_name}
               </div>
             </div>
             <div className="flex flex-col">
               <div className="text-sm text-gray-500">Email</div>
               <div className="text-sm font-medium border border-gray-200 rounded-lg p-2 bg-white">
-                alex@gmail.com
+                {userData.email}
               </div>
             </div>
           </div>
         </div>
-          <button className="mt-3 w-full py-2 px-4 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
-            View Profile
-          </button>
-        </div>
-      
+        <button className="mt-3 w-full py-2 px-4 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
+          View Profile
+        </button>
+      </div>
 
       {/* Quick Transfer Card */}
-      <div className="bg-white rounded-xl shadow-sm p-4">
+      <div className="bg-white rounded-xl shadow-lg p-6">
         <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
           <ArrowRight size={18} className="mr-2 text-orange-500" />
           Quick Transfer
@@ -102,10 +170,11 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
               required
             >
               <option value="">Select recipient</option>
-              <option value="savings">My Savings Account</option>
-              <option value="john">John Smith</option>
-              <option value="jane">Jane Doe</option>
-              <option value="bill">Bill Payment</option>
+              {users.map((user: any) => (
+                <option key={user.user_id} value={user.user_id}>
+                  {user.first_name} {user.last_name}
+                </option>
+              ))}
             </select>
           </div>
           <button
@@ -119,7 +188,7 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
       </div>
 
       {/* Spending Insights */}
-      <div className="bg-white rounded-xl shadow-sm p-4">
+      <div className="bg-white rounded-xl shadow-lg p-6">
         <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
           <TrendingUp size={18} className="mr-2 text-orange-500" />
           Spending Insights
@@ -170,7 +239,7 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
       </div>
 
       {/* Upcoming Payments */}
-      <div className="bg-white rounded-xl shadow-sm p-4">
+      <div className="bg-white rounded-xl shadow-lg p-6">
         <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
           <Calendar size={18} className="mr-2 text-orange-500" />
           Upcoming Payments
