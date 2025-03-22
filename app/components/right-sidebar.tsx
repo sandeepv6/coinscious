@@ -47,20 +47,28 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
 
   const handleQuickTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!transferTo || !transferAmount) {
+      alert("Please select a recipient and enter an amount");
+      return;
+    }
+    
     try {
+      console.log("Selected recipient ID:", transferTo);
+      console.log("Transfer amount:", transferAmount);
+      
       // Create a transaction
       const transaction = {
         user_id: userData.user_id,
         recipient_id: transferTo,
         amount: parseFloat(transferAmount),
-        date: new Date().toISOString(),
         description: 'Quick Transfer',
-        category: 'Transfer',
+        category: 'transfer',
         payment_method: 'debit',
-        transaction_type: 'debit',
+        note: `Transfer to user ${transferTo}`
       };
 
-      console.log(transaction);
+      console.log("Sending transaction data:", transaction);
 
       const response = await fetch('http://localhost:5000/api/transactions', {
         method: 'POST',
@@ -71,14 +79,19 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create transaction');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create transaction');
       }
 
-      alert(`Transfer of $${transferAmount} to user ID ${transferTo} initiated!`);
+      alert(`Transfer of $${transferAmount} to user ID ${transferTo} successful!`);
       setTransferAmount('');
       setTransferTo('');
+      
+      // Optionally refresh the page or update the wallet balance
+      window.location.reload();
     } catch (error) {
       console.error('Error during transfer:', error);
+      alert(`Transfer failed: ${error.message}`);
     }
   };
 

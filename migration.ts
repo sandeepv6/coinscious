@@ -34,13 +34,15 @@ async function runMigration() {
       transaction_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
       user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
       wallet_id UUID REFERENCES wallets(wallet_id) ON DELETE CASCADE,
-      date DATE NOT NULL,
       description TEXT NOT NULL,
       amount NUMERIC(10, 2) NOT NULL,
       category TEXT NOT NULL,
       payment_method TEXT,
       transaction_type TEXT NOT NULL,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+      recipient TEXT,
+      note TEXT,
+      is_fraud BOOLEAN DEFAULT FALSE
     );
 
     -- Indexes
