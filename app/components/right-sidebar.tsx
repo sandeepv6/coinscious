@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { User, CreditCard, TrendingUp, ArrowRight, Bell, Calendar } from 'lucide-react';
-import { useRouter } from 'next/router';
-import { useClerk } from '@clerk/clerk-react';
+import { useRouter } from 'next/navigation';
+import { useClerk } from '@clerk/nextjs';
 
 type RightSidebarProps = {
   userData: {
@@ -43,13 +43,13 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
     { id: 3, text: 'Unusual activity detected on your account', time: '3 days ago' },
   ]);
 
-/*   const { signOut } = useClerk();
+  const { signOut } = useClerk();
   const router = useRouter();
 
   const handleSignOut = async () => {
     await signOut();
     router.push('/');
-  }; */
+  };
 
   useEffect(() => {
     // Fetch all users from the database
@@ -185,11 +185,6 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
   const handleCancelTransfer = () => {
     setShowWarningModal(false);
     setPendingTransaction(null);
-  };
-
-  const handleSignOut = () => {
-    // Implement sign out logic
-    console.log("Signing out");
   };
 
   return (
@@ -365,53 +360,6 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
         </button>
       </div>
 
-      {/* Upcoming Payments */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <h3 className="font-semibold text-gray-800 mb-3 flex items-center">
-          <Calendar size={18} className="mr-2 text-orange-500" />
-          Upcoming Payments
-        </h3>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-500 mr-3">
-                <CreditCard size={16} />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Credit Card</p>
-                <p className="text-xs text-gray-500">Due in 3 days</p>
-              </div>
-            </div>
-            <span className="font-medium text-blue-600">$240.00</span>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-500 mr-3">
-                <User size={16} />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Netflix</p>
-                <p className="text-xs text-gray-500">Due in 10 days</p>
-              </div>
-            </div>
-            <span className="font-medium text-green-600">$14.99</span>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-500 mr-3">
-                <Bell size={16} />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Phone Bill</p>
-                <p className="text-xs text-gray-500">Due in 14 days</p>
-              </div>
-            </div>
-            <span className="font-medium text-purple-600">$85.50</span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
