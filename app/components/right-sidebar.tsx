@@ -88,7 +88,7 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
       if (!insights[transaction.category]) {
         insights[transaction.category] = 0;
       }
-      insights[transaction.category] += transaction.amount;
+      insights[transaction.category] += Math.abs(transaction.amount);
     });
 
     // Sort categories by total amount spent and select the top 5
