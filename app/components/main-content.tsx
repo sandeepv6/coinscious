@@ -98,9 +98,9 @@ export default function MainContent({ userData, walletData }: { userData: any, w
         let totalExpenses = 0;
         
         data.forEach((transaction: Transaction) => {
-          if (transaction.transaction_type === 'income') {
+          if (transaction.amount > 0) {
             totalIncome += transaction.amount;
-          } else if (transaction.transaction_type === 'expense') {
+          } else if (transaction.amount < 0) {
             totalExpenses += transaction.amount;
           }
         });
