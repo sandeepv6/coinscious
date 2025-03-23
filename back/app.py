@@ -8,6 +8,7 @@ import datetime
 from agent import chat, make_conversation
 from langchain.schema import SystemMessage
 from pinecone import Pinecone, ServerlessSpec
+from note_utils import *
 
 load_dotenv()
 
@@ -199,6 +200,10 @@ def create_transaction():
 
     recipient_wallet = recipient_wallet_response.data[0]
     supabase.table('wallets').update({'debit_balance': recipient_wallet['debit_balance'] + amount}).eq('user_id', recipient_id).execute()
+
+    sender_personal_notes = get_notes(user_id)
+    sender_transaction = f"{transaction['created_at']} | {transaction['description']}; {transaction['note']}: ${transaction['amount']}"
+    sender_note = make_note(sender_transaction, notes)
 
     # Create transaction for sender (expense)
     sender_transaction = {
