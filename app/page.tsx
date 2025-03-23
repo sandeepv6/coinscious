@@ -12,14 +12,8 @@ export default function Home() {
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // useEffect(() => {
-  //   // If user is already signed in, redirect to bank page
-  //   if (isLoaded && isSignedIn) {
-  //     router.push('/bank');
-  //   }
-  // }, [isLoaded, isSignedIn, router]);
-
   useEffect(() => {
+    // Set up canvas animation
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -29,7 +23,7 @@ export default function Home() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    const balls = Array.from({ length: 2 }, () => ({
+    const balls = Array.from({ length: 5 }, () => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
       vx: (Math.random() - 0.5) * 2,
@@ -62,12 +56,25 @@ export default function Home() {
       requestAnimationFrame(draw);
     }
 
+    // Start the animation
     draw();
+
+    // Handle authentication redirect
+    if (isLoaded && isSignedIn) {
+      const redirectTimer = setTimeout(() => {
+        router.push('/bank');
+      }, 2000); // 2 second delay before redirect
+      
+      return () => {
+        clearTimeout(redirectTimer);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      };
+    }
 
     return () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     };
-  }, []);
+  }, [isLoaded, isSignedIn, router]);
 
   const handleAuthAction = () => {
     if (isSignedIn) {
@@ -130,18 +137,41 @@ export default function Home() {
       <motion.h1
         className="text-5xl font-bold text-orange-500 mb-6 z-10"
         initial={{ opacity: 0, y: -50 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 1 }}
+        animate={{ 
+          opacity: 1, 
+          y: 0,
+          scale: [1, 1.02, 1],
+        }}
+        transition={{ 
+          duration: 1,
+          scale: {
+            duration: 4,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }
+        }}
       >
-        Welcome to MyBank
+        Welcome to Coinscious
       </motion.h1>
       <motion.p
         className="text-gray-600 mb-8 text-center max-w-md z-10"
         initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5, duration: 1 }}
+        animate={{ 
+          opacity: 1,
+          scale: [1, 1.01, 1],
+        }}
+        transition={{ 
+          delay: 0.5, 
+          duration: 1,
+          scale: {
+            duration: 4,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 0.5
+          }
+        }}
       >
-        Experience our new online banking platform with enhanced features and security.
+        An intelligent financial advisor in your pocket — no spreadsheets, no stress.
       </motion.p>
       <motion.div
         className="flex space-x-4 z-10"
