@@ -95,42 +95,36 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
     }
   };
 
+  const handleSignOut = () => {
+    // Implement sign out logic
+    console.log("Signing out");
+  };
+
   return (
     <div className="w-80 p-4 mr-4 my-4 space-y-6">
       {/* Profile Card */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 rounded-full bg-orange-500 flex items-center justify-center text-white font-bold text-xl">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-r from-orange-500 to-yellow-500 flex items-center justify-center text-white font-bold text-xl">
             {userData.first_name.charAt(0)}
           </div>
-          <div>
-            <h3 className="font-medium text-gray-800">{userData.first_name} {userData.last_name}</h3>
-          </div>
-        </div>
-        <div className="mt-4 pt-4 border-t border-gray-100">
-          <div className="space-y-2">
-            <div className="flex flex-col">
-              <div className="text-sm text-gray-500">First Name</div>
-              <div className="text-sm font-medium border border-gray-200 rounded-lg p-2 bg-white">
-                {userData.first_name}
-              </div>
-            </div>
-            <div className="flex flex-col">
-              <div className="text-sm text-gray-500">Last Name</div>
-              <div className="text-sm font-medium border border-gray-200 rounded-lg p-2 bg-white">
-                {userData.last_name}
-              </div>
-            </div>
-            <div className="flex flex-col">
-              <div className="text-sm text-gray-500">Email</div>
-              <div className="text-sm font-medium border border-gray-200 rounded-lg p-2 bg-white">
-                {userData.email}
-              </div>
+          <div className="flex-1">
+            <h3 className="font-medium text-gray-800 text-lg">{userData.first_name} {userData.last_name}</h3>
+            <div className="flex items-center">
+              <p className="text-sm text-gray-500 mr-2">{userData.email}</p>
             </div>
           </div>
         </div>
-        <button className="mt-3 w-full py-2 px-4 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors">
-          View Profile
+        <button
+          onClick={handleSignOut}
+          className="mt-4 w-full py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors flex items-center justify-center"
+        >
+          <span className="sr-only">Sign Out</span>
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5 mr-2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-9A2.25 2.25 0 002.25 5.25v13.5A2.25 2.25 0 004.5 21h9a2.25 2.25 0 002.25-2.25V15" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M18 12h-15m0 0l3-3m-3 3l3 3" />
+          </svg>
+          Sign Out
         </button>
       </div>
 
