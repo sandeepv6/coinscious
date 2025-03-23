@@ -9,6 +9,7 @@ from agent import chat, make_conversation
 from langchain.schema import SystemMessage
 from pinecone import Pinecone, ServerlessSpec
 from finance_summary_agent import generate_financial_summary, generate_summary_by_clerk_id
+import pickle
 
 load_dotenv()
 
@@ -289,20 +290,27 @@ def get_user_wallet(user_id):
 
 @app.route('/api/agent/<user_id>', methods=['POST'])
 def get_chat_response(user_id):
-
+    """Get a response from the AI agent"""
     global conversations
-
+    
+    data = request.json
+    message = data.get('content', '')
+    
+    # Get or create conversation
     if user_id not in conversations:
         conversations[user_id] = make_conversation(user_id)
-
+    
     conversation = conversations[user_id]
-
-    message_info = request.json
-    message = message_info.get("content")
-
+    
+    # Get response from agent
     reply = chat(conversation, message)
-
-    return jsonify({"response": reply})
+    
+    # Check if the response contains a navigation command
+    if "|NAVIGATE|" in reply:
+        message_text, route = reply.split("|NAVIGATE|")
+        return jsonify({"response": message_text, "navigate": True, "route": route})
+    
+    return jsonify({"response": reply, "navigate": False})
   
   
 @app.route('/api/transactions/<user_id>', methods=['GET'])
@@ -526,6 +534,71 @@ def get_financial_summary_by_clerk(clerk_id):
     """Generate a financial summary using Clerk ID"""
     summary = generate_summary_by_clerk_id(clerk_id)
     return jsonify(summary)
+
+@app.route('/api/simulate-transaction', methods=['POST'])
+def simulate_transaction():
+    """Simulate a transaction for testing purposes"""
+    data = request.json
+    clerk_id = data.get('userId')  # This is actually the clerk_id from the frontend
+    amount = data.get('amount')
+    description = data.get('description', 'Fakazon Purchase')
+    merchant = data.get('merchant', 'Fakazon Inc.')
+    
+    if not clerk_id or not amount:
+        return jsonify({"error": "Missing required fields"}), 400
+    
+    try:
+        # First, get the user_id from clerk_id
+        user_response = supabase.table('users').select('user_id').eq('clerk_id', clerk_id).execute()
+        
+        if not user_response.data:
+            return jsonify({"error": "User not found"}), 404
+        
+        user_id = user_response.data[0]['user_id']
+        
+        # Get user's wallet
+        wallet_response = supabase.table('wallets').select('*').eq('user_id', user_id).execute()
+        
+        if not wallet_response.data:
+            return jsonify({"error": "Wallet not found"}), 404
+        
+        wallet = wallet_response.data[0]
+        
+        # Create a new transaction
+        transaction_data = {
+            "user_id": user_id,
+            "description": description,
+            "amount": -float(amount),  # Negative for purchases
+            "recipient": merchant,
+            "category": "Shopping",
+            "payment_method": "debit_card",
+            "note": f"Purchase from {merchant}",
+            "is_fraud": False
+        }
+        
+        # Insert the transaction
+        transaction_response = supabase.table('transactions').insert(transaction_data).execute()
+        
+        if not transaction_response.data:
+            return jsonify({"error": "Failed to create transaction"}), 500
+        
+        # Update wallet balance
+        new_balance = float(wallet.get('debit_balance', 0)) + float(transaction_data['amount'])
+        
+        wallet_update_response = supabase.table('wallets').update({"debit_balance": new_balance}).eq('user_id', user_id).execute()
+        
+        if not wallet_update_response.data:
+            return jsonify({"error": "Failed to update wallet balance"}), 500
+        
+        return jsonify({
+            "success": True,
+            "transaction": transaction_response.data[0],
+            "new_balance": new_balance
+        })
+        
+    except Exception as e:
+        print(f"Error simulating transaction: {e}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

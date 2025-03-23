@@ -1,12 +1,14 @@
 import os
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.schema import SystemMessage, HumanMessage
-from langchain_core.tools import tool
+from langchain.schema import SystemMessage, HumanMessage, AIMessage
+from langchain.tools import Tool
+from langchain.agents import AgentExecutor, create_react_agent
+from langchain.prompts import ChatPromptTemplate
 from dotenv import load_dotenv
 from supabase import create_client
-import re
 import json
-import requests
+import re
+import uuid
 load_dotenv()
 
 
@@ -18,218 +20,6 @@ supabase = create_client(supabase_url, supabase_key)
 # Initialize the chat model
 chat_model = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
 
-@tool
-def search_history(query: str, user_id: str):
-    """Searches the transaction history of the user (user_id) and returns an answer to your query.
-
-    Args:
-        query: a question about the user's transaction history
-        user_id: the user's user_id
-    """
-    
-    context = get_transac_hist(user_id)
-    conversation = [
-            SystemMessage(content="You are an accurate document Q&A AI. You provide accurate answers to questions regarding the text below."),
-            HumanMessage(content=context),
-            HumanMessage(content=query),
-            ]
-    response = chat_model(conversation)
-    return response.content
-
-@tool
-def get_user_info(user_id: str):
-    """Retrieves the user's personal information from the database.
-
-    Args:
-        user_id: the user's user_id
-    """
-    
-    response = supabase.table('users').select('*').eq('user_id', user_id).execute()
-    
-    if not response.data:
-        return "User information not found."
-    
-    user_data = response.data[0]
-    return str(user_data)
-
-@tool
-def get_wallet_info(user_id: str):
-    """Retrieves the user's wallet information including balances and payment methods.
-
-    Args:
-        user_id: the user's user_id
-    """
-    
-    response = supabase.table('wallets').select('*').eq('user_id', user_id).execute()
-    
-    if not response.data:
-        return "Wallet information not found."
-    
-    wallet_data = response.data[0]
-    return str(wallet_data)
-
-@tool
-def search_user_by_name(name: str):
-    """Searches for users by their name (first name, last name or both) and returns a list of matching users.
-
-    Args:
-        name: name or partial name to search for
-    """
-    # Split name into parts for more flexible search
-    name_parts = name.lower().split()
-    
-    # Get all users
-    response = supabase.table('users').select('*').execute()
-    users = response.data
-    
-    # Filter users that match any part of the name
-    matching_users = []
-    for user in users:
-        full_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".lower()
-        
-        if any(part in full_name for part in name_parts):
-            matching_users.append({
-                'user_id': user.get('user_id'),
-                'first_name': user.get('first_name'),
-                'last_name': user.get('last_name')
-            })
-    
-    if not matching_users:
-        return "No users found with that name."
-    
-    return json.dumps(matching_users, ensure_ascii=False)
-
-@tool
-def verify_transfer_amount(user_id: str, amount: float):
-    """Verifies if the user has sufficient balance to transfer the specified amount.
-
-    Args:
-        user_id: the user's user_id
-        amount: the amount to transfer
-    """
-    response = supabase.table('wallets').select('debit_balance').eq('user_id', user_id).execute()
-    
-    if not response.data:
-        return "User's wallet information not found."
-    
-    balance = response.data[0].get('debit_balance', 0)
-    
-    if balance < amount:
-        return f"Insufficient funds. Current balance: ${balance}, Required amount: ${amount}"
-    
-    return f"Transfer is possible. Current balance: ${balance}, Transfer amount: ${amount}"
-
-@tool
-def transfer_money(sender_id: str, recipient_id: str, amount: float, description: str = "Transfer", confirm_fraud_check: bool = False):
-    """Transfers money from one user to another.
-
-    Args:
-        sender_id: the sender's user_id
-        recipient_id: the recipient's user_id
-        amount: the amount to transfer
-        description: description of the transfer
-        confirm_fraud_check: confirm that fraud check has been performed and user wants to proceed (default: False)
-    """
-    # 사기 감지 검사
-    if not confirm_fraud_check:
-        # 이전 거래 내역에서 수신인 확인
-        response = supabase.table('transactions').select('*').eq('user_id', sender_id).eq('recipient', recipient_id).execute()
-        is_known_recipient = len(response.data) > 0
-        
-        # 사기 감지 검사 실행
-        fraud_check = detect_fraud_keywords(description, amount, is_known_recipient)
-        
-        # 경고 메시지가 있는 경우 먼저 반환
-        if "위험 요소가 감지되지 않았습니다" not in fraud_check:
-            return f"{fraud_check}\n\n거래를 계속 진행하려면 confirm_fraud_check=True 매개변수와 함께 다시 호출하세요."
-    
-    # 송금 API 호출을 위한 데이터 준비
-    transfer_data = {
-        'sender_id': sender_id,
-        'recipient_id': recipient_id,
-        'amount': amount,
-        'description': description
-    }
-    
-    try:
-        # API 호출하여 송금 처리
-        response = requests.post('http://localhost:5000/api/transactions/transfer', json=transfer_data)
-        
-        # 응답 확인
-        if response.status_code == 200:
-            result = response.json()
-            return f"Transfer successful: ${amount} sent from {sender_id} to {recipient_id}. Description: {description}"
-        else:
-            error_msg = response.json().get('error', 'An unknown error occurred')
-            return f"Error during transfer: {error_msg}"
-    except Exception as e:
-        return f"Error during transfer: {str(e)}"
-
-@tool
-def detect_fraud_keywords(message: str, amount: float = 0, is_known_recipient: bool = True):
-    """Detect potential fraud by analyzing message content and transaction details.
-    
-    Args:
-        message: The message or transaction description to analyze
-        amount: The transfer amount (default: 0)
-        is_known_recipient: Whether the recipient is known to the user (default: True)
-    
-    Returns:
-        A string with fraud warning if detected, or confirmation that transaction appears legitimate
-    """
-    # 금액 관련 위험 요소 확인
-    amount_warning = None
-    if amount >= 1000:
-        amount_warning = f"• 고액 이체 경고: ${amount}는 고액 이체로 간주됩니다."
-    
-    # 수신인 관련 위험 요소 확인
-    recipient_warning = None
-    if not is_known_recipient:
-        recipient_warning = "• 낯선 수신인 경고: 이전에 거래 내역이 없는 수신인에게 이체하려고 합니다."
-    
-    # 의심스러운 키워드 목록
-    suspicious_keywords = [
-        "긴급", "urgent", "emergency", "즉시", "immediately",
-        "비밀", "secret", "confidential", "보안", "security",
-        "당첨", "lottery", "prize", "reward", "상금",
-        "투자", "investment", "수익", "return", "profit",
-        "선물", "gift", "카드", "card", "코드", "code",
-        "인증", "verification", "verify", "확인", "증명",
-        "세금", "tax", "환급", "refund", "return",
-        "당신만", "only you", "only for you", "special", "특별",
-        "지금", "now", "right now", "바로", "immediately",
-        "선불", "prepaid", "선입금", "deposit", "입금",
-        "문제", "problem", "issue", "해결", "solve",
-        "정부", "government", "공무원", "official", "공식"
-    ]
-    
-    # 메시지에서 의심스러운 키워드 찾기
-    found_keywords = []
-    for keyword in suspicious_keywords:
-        if keyword.lower() in message.lower():
-            found_keywords.append(keyword)
-    
-    keyword_warning = None
-    if found_keywords:
-        keyword_warning = f"• 의심 키워드 감지: '{', '.join(found_keywords)}' 같은 사기 의심 키워드가 포함되어 있습니다."
-    
-    # 경고 메시지 생성
-    warnings = []
-    if amount_warning:
-        warnings.append(amount_warning)
-    if recipient_warning:
-        warnings.append(recipient_warning)
-    if keyword_warning:
-        warnings.append(keyword_warning)
-    
-    if warnings:
-        warning_message = "🚨 **사기 거래 의심 경고** 🚨\n\n"
-        warning_message += "\n".join(warnings)
-        warning_message += "\n\n이체를 진행하기 전에 신중하게 확인하세요. 의심스러운 거래라면 즉시 취소하는 것이 좋습니다."
-        return warning_message
-    
-    return "이 거래는 위험 요소가 감지되지 않았습니다."
-
 def get_transac_hist(user_id):
     response = supabase.table('transactions').select('*').eq('user_id', user_id).order('created_at', desc=True).execute()
     transactions = response.data
@@ -240,34 +30,443 @@ def get_transac_hist(user_id):
 
     return string[:-1]
 
+def get_all_users(current_user_id):
+    """Get all users from the database except the current user"""
+    response = supabase.table('users').select('user_id,first_name,last_name').neq('user_id', current_user_id).execute()
+    return response.data
+
+def get_user_wallet(user_id):
+    """Get a user's wallet information"""
+    response = supabase.table('wallets').select('*').eq('user_id', user_id).execute()
+    if response.data:
+        return response.data[0]
+    return None
+
+def parse_transfer_input(x, current_user_id):
+    """Parse the transfer input, with robust error handling"""
+    try:
+        # First try parsing directly as JSON
+        params = json.loads(x)
+        # Force the sender_id to be the current user
+        params['sender_id'] = current_user_id
+        return params
+    except json.JSONDecodeError:
+        # If that fails, try to extract a JSON object from the text
+        try:
+            # Look for data between { and }
+            match = re.search(r'({.*})', x, re.DOTALL)
+            if match:
+                json_str = match.group(1)
+                params = json.loads(json_str)
+                # Force the sender_id to be the current user
+                params['sender_id'] = current_user_id
+                return params
+            
+            # If no brackets found, let's try to parse key-value pairs
+            # Expected format: recipient_id: value, amount: value
+            result = {'sender_id': current_user_id}
+            
+            # Extract recipient_id
+            recipient_match = re.search(r'recipient_id["\s:]+([^,\s"]+)', x)
+            if recipient_match:
+                result['recipient_id'] = recipient_match.group(1).strip('"\'')
+                
+            # Extract amount
+            amount_match = re.search(r'amount["\s:]+([^,\s"]+)', x)
+            if amount_match:
+                result['amount'] = amount_match.group(1).strip('"\'')
+                
+            # Extract description (if available)
+            desc_match = re.search(r'description["\s:]+([^,\s"]+)', x)
+            if desc_match:
+                result['description'] = desc_match.group(1).strip('"\'')
+                
+            if 'recipient_id' in result and 'amount' in result:
+                return result
+                
+            raise ValueError("Could not parse transfer parameters from input")
+        except Exception as e:
+            return {"error": f"Failed to parse transfer input: {str(e)}\nInput was: {x}"}
+
+def prepare_transfer(sender_id, recipient_id, amount, description="Quick Transfer"):
+    """Validate and prepare a transfer between users without executing it"""
+    try:
+        # Convert amount to float if it's a string
+        if isinstance(amount, str):
+            # Remove any currency symbols and commas
+            amount = re.sub(r'[^\d.]', '', amount)
+            amount = float(amount)
+            
+        # Check if sender has enough funds
+        sender_wallet = get_user_wallet(sender_id)
+        if not sender_wallet:
+            return {"success": False, "error": "Sender wallet not found"}
+        
+        if sender_wallet['debit_balance'] < amount:
+            return {"success": False, "error": f"Insufficient funds. Your balance is ${sender_wallet['debit_balance']}"}
+        
+        # Check if recipient exists
+        recipient_wallet = get_user_wallet(recipient_id)
+        if not recipient_wallet:
+            return {"success": False, "error": "Recipient wallet not found"}
+        
+        # Get recipient name for better response
+        recipient_info = supabase.table('users').select('first_name,last_name').eq('user_id', recipient_id).execute()
+        recipient_name = "the recipient"
+        if recipient_info.data:
+            recipient_name = f"{recipient_info.data[0]['first_name']} {recipient_info.data[0]['last_name']}"
+        
+        # Generate a transfer ID
+        transfer_id = str(uuid.uuid4())
+        
+        # Create a transfer object that will be stored for later confirmation
+        transfer = {
+            "transfer_id": transfer_id,
+            "sender_id": sender_id,
+            "recipient_id": recipient_id,
+            "amount": amount,
+            "description": description,
+            "recipient_name": recipient_name,
+            "sender_balance": sender_wallet['debit_balance']
+        }
+        
+        return {
+            "success": True,
+            "transfer": transfer,
+            "message": f"Ready to transfer ${amount:.2f} to {recipient_name}. Your current balance is ${sender_wallet['debit_balance']:.2f}. Please confirm this transfer."
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+def execute_transfer(transfer):
+    """Execute a prepared transfer"""
+    try:
+        sender_id = transfer["sender_id"]
+        recipient_id = transfer["recipient_id"]
+        amount = transfer["amount"]
+        description = transfer["description"]
+        recipient_name = transfer["recipient_name"]
+        
+        # Check again if sender has enough funds (balance might have changed)
+        sender_wallet = get_user_wallet(sender_id)
+        if not sender_wallet:
+            return {"success": False, "error": "Sender wallet not found"}
+        
+        if sender_wallet['debit_balance'] < amount:
+            return {"success": False, "error": f"Insufficient funds. Your balance is ${sender_wallet['debit_balance']}"}
+        
+        # Check if recipient exists (might have been deleted)
+        recipient_wallet = get_user_wallet(recipient_id)
+        if not recipient_wallet:
+            return {"success": False, "error": "Recipient wallet not found"}
+        
+        # Update sender's wallet
+        supabase.table('wallets').update({'debit_balance': sender_wallet['debit_balance'] - amount}).eq('user_id', sender_id).execute()
+        
+        # Update recipient's wallet
+        supabase.table('wallets').update({'debit_balance': recipient_wallet['debit_balance'] + amount}).eq('user_id', recipient_id).execute()
+        
+        # Create sender transaction (expense)
+        sender_transaction = {
+            'user_id': sender_id,
+            'description': description,
+            'amount': -amount,
+            'category': 'transfer',
+            'payment_method': 'debit',
+            'recipient': recipient_id,
+            'note': f'Transfer to {recipient_name}',
+            'is_fraud': False
+        }
+        
+        sender_response = supabase.table('transactions').insert(sender_transaction).execute()
+        
+        # Create recipient transaction (income)
+        recipient_transaction = {
+            'user_id': recipient_id,
+            'description': description,
+            'amount': amount,
+            'category': 'transfer',
+            'payment_method': 'debit',
+            'recipient': sender_id,
+            'note': f'Transfer from user {sender_id}',
+            'is_fraud': False
+        }
+        
+        recipient_response = supabase.table('transactions').insert(recipient_transaction).execute()
+        
+        return {
+            "success": True, 
+            "message": f"Successfully transferred ${amount:.2f} to {recipient_name}. Your new balance is ${sender_wallet['debit_balance'] - amount:.2f}."
+        }
+    except Exception as e:
+        # Rollback if there's an error
+        if 'sender_wallet' in locals() and 'recipient_wallet' in locals():
+            supabase.table('wallets').update({'debit_balance': sender_wallet['debit_balance']}).eq('user_id', sender_id).execute()
+            supabase.table('wallets').update({'debit_balance': recipient_wallet['debit_balance']}).eq('user_id', recipient_id).execute()
+        return {"success": False, "error": str(e)}
+
+def prepare_transfer_wrapper(input_str, user_id, conversation_data):
+    """Wrapper for prepare_transfer that handles parsing and stores the pending transfer"""
+    try:
+        # Parse the input
+        params = parse_transfer_input(input_str, user_id)
+        
+        if "error" in params:
+            return params["error"]
+        
+        # Prepare the transfer
+        result = prepare_transfer(
+            sender_id=params.get("sender_id"),
+            recipient_id=params.get("recipient_id"),
+            amount=params.get("amount"),
+            description=params.get("description", "Quick Transfer")
+        )
+        
+        # If successful, store the pending transfer in conversation data
+        if result.get("success") and "transfer" in result:
+            conversation_data["pending_transfer"] = result["transfer"]
+            
+            # Add a clear instruction to the message
+            result["message"] += "\n\nPlease reply with 'yes' to confirm or 'no' to cancel."
+        
+        return result
+    except Exception as e:
+        return f"Error preparing transfer: {str(e)}"
+
+def confirm_transfer(confirmation, conversation_data):
+    """Confirm or cancel a prepared transfer"""
+    pending_transfer = conversation_data.get("pending_transfer")
+    
+    if not pending_transfer:
+        return "There is no pending transfer to confirm. Please prepare a transfer first."
+    
+    confirmation = confirmation.lower().strip()
+    
+    if confirmation in ["yes", "confirm", "approve", "ok", "sure", "proceed", "go ahead"]:
+        # Execute the transfer
+        result = execute_transfer(pending_transfer)
+        # Clear the pending transfer
+        conversation_data["pending_transfer"] = None
+        return result["message"]
+    elif confirmation in ["no", "cancel", "reject", "stop", "don't", "dont"]:
+        # Clear the pending transfer
+        conversation_data["pending_transfer"] = None
+        return "Transfer cancelled. Is there anything else I can help you with?"
+    else:
+        return "Please confirm with 'yes' to proceed or 'no' to cancel the transfer."
+
+def find_user_by_name(name):
+    """Find a user by their name"""
+    name_parts = name.lower().split()
+    
+    # Try to match by first name and last name
+    if len(name_parts) > 1:
+        first_name = name_parts[0]
+        last_name = ' '.join(name_parts[1:])
+        response = supabase.table('users').select('*').ilike('first_name', f"%{first_name}%").ilike('last_name', f"%{last_name}%").execute()
+        if response.data:
+            return response.data
+    
+    # Try to match by first name only
+    response = supabase.table('users').select('*').ilike('first_name', f"%{name_parts[0]}%").execute()
+    if response.data:
+        return response.data
+    
+    # Try to match by last name only
+    if len(name_parts) > 1:
+        response = supabase.table('users').select('*').ilike('last_name', f"%{name_parts[-1]}%").execute()
+        if response.data:
+            return response.data
+    
+    return []
+
 def make_conversation(user_id):
-    conversation = [
-            SystemMessage(content=f"""You are a helpful AI assistant in a bank app. You are an expert in finance and accounting. 
-You reply as concisely as possible. The user's id is user_id='{user_id}'.
+    context = get_transac_hist(user_id)
+    
+    # Initialize conversation data
+    conversation_data = {
+        "user_id": user_id,
+        "context": context,
+        "chat_history": [],
+        "pending_transfer": None,  # Will store prepared transfers
+        "agent_scratchpad": ""
+    }
+    
+    # Define tools with closures to capture the current user_id and conversation_data
+    tools = [
+        Tool(
+            name="get_users",
+            func=lambda x: get_all_users(user_id),
+            description="Get a list of all users in the system. Returns user_id, first_name, and last_name for each user."
+        ),
+        Tool(
+            name="get_wallet",
+            func=lambda x: get_user_wallet(x if x != "me" else user_id),
+            description="Get wallet information for a specific user by providing their user_id. Use 'me' to get your own wallet."
+        ),
+        Tool(
+            name="find_user",
+            func=lambda x: find_user_by_name(x),
+            description="Find a user by their name (first name, last name, or both)."
+        ),
+        Tool(
+            name="prepare_transfer",
+            func=lambda x: prepare_transfer_wrapper(x, user_id, conversation_data),
+            description="Prepare a transfer to another user (but don't execute it). Provide a JSON with recipient_id, amount, and optional description."
+        ),
+        Tool(
+            name="confirm_transfer",
+            func=lambda x: confirm_transfer(x, conversation_data),
+            description="Confirm or cancel a prepared transfer. Pass 'yes' to confirm or 'no' to cancel."
+        )
+    ]
+    
+    # Define the system prompt
+    system_template = """You are a helpful AI assistant in a bank app. You are an expert in finance and accounting. 
+    You reply as concisely as possible.
+    
+    Your user's ID is: {user_id}
+    
+    User transaction history:
+    {context}
+    
+    You have access to the following tools:
+    {tools}
+    
+    The available tools are: {tool_names}
+    
+    To use a tool, please use the following format:
+    ```
+    Thought: I need to use a tool to help answer the user's question.
+    Action: tool_name
+    Action Input: the input to the tool
+    ```
 
-For transfers, when the user asks to send money to someone (e.g., 'send $500 to my landlord'), follow these steps:
-1. First check if you understand who the recipient is. If not, ask for clarification.
-2. Search for the recipient using the search_user_by_name tool.
-3. If multiple users are found, ask the user to clarify which person they mean.
-4. Use the detect_fraud_keywords tool to check for suspicious keywords, high amounts (≥$1000), or unknown recipients.
-5. If the fraud detection tool returns warnings, present them to the user and ask for confirmation before proceeding.
-6. Verify the sender has sufficient balance using verify_transfer_amount.
-7. If all conditions are met, confirm with the user before making the transfer.
-8. Use the transfer_money tool only after user confirmation and fraud check.
+    When you have the final answer or need to ask the user a question, respond in this format:
+    ```
+    Thought: I know what to tell the user.
+    Final Answer: your response to the user here
+    ```
 
-When the user is asking questions about transactions or requesting a transfer:
-- Always be vigilant about potential fraud.
-- Use the detect_fraud_keywords tool if the message contains urgent requests, mentions of gifts, investments, lottery, or other suspicious keywords.
-- If the transfer amount is $1000 or more, emphasize that this is a large amount and ask for confirmation.
-- If the user is sending money to someone they haven't transacted with before, point this out as a potential risk.
+    IMPORTANT - MONEY TRANSFERS REQUIRE TWO STEPS:
+    1. First use prepare_transfer to check if the transfer is valid
+    2. Then ask the user to confirm the transfer
+    3. Only after confirmation, use confirm_transfer with the user's response
+    
+    When using the prepare_transfer tool, you only need to provide the recipient_id and amount:
+    Action: prepare_transfer
+    Action Input: {{"recipient_id": "user_456", "amount": 100, "description": "Payment for lunch"}}
+    
+    When a user isn't found in the database or you need clarification:
+    1. First try the find_user tool to search for similar names
+    2. If no matches are found, use the get_users tool to show available users
+    3. Then use "Final Answer" to ask the user to select or specify a different recipient
+        
+    Use the tools to help the user with their banking needs. If they want to make a transfer:
+    1. Get the list of users they can transfer to if needed
+    2. Ask who they want to transfer to (if not specified)
+    3. Ask for the amount (if not specified)
+    4. Prepare the transfer and show details to the user
+    5. ASK FOR CONFIRMATION before proceeding
+    6. Only confirm the transfer if the user explicitly approves
 
-All responses should be in English."""),
-            ]
-    return conversation
+    When a user mentions a name, use the find_user tool to look them up.
+
+    Remember to be helpful, concise, and security-conscious.
+    {agent_scratchpad}
+    """
+
+    # Create the prompt with system and human messages
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_template),
+        ("human", "{input}"),  # Ensure the user's input is included as a human message
+    ])
+
+    # Get tool names for the prompt
+    tool_names = ", ".join([tool.name for tool in tools])
+
+    # Create the agent
+    agent = create_react_agent(
+        llm=chat_model,
+        tools=tools,
+        prompt=prompt
+    )
+
+    # Create the agent executor
+    agent_executor = AgentExecutor(
+        agent=agent,
+        tools=tools,
+        verbose=True,
+        handle_parsing_errors=True,
+    )
+
+    # Store the agent executor and tools in conversation data
+    conversation_data["agent_executor"] = agent_executor
+    conversation_data["tools"] = tools
+    conversation_data["tool_names"] = tool_names
+    
+    return conversation_data
+
+def chat(conversation_data, message):
+    agent_executor = conversation_data["agent_executor"]
+    chat_history = conversation_data["chat_history"]
+    context = conversation_data["context"]
+    tools = conversation_data["tools"]
+    tool_names = conversation_data["tool_names"]
+    user_id = conversation_data["user_id"]
+    agent_scratchpad = conversation_data.get("agent_scratchpad", "")
+    
+    # Check if there's a pending transfer that needs confirmation
+    pending_transfer = conversation_data.get("pending_transfer")
+    
+    # If there's a pending transfer and the user's message looks like a confirmation
+    if pending_transfer and message.lower() in ["yes", "confirm", "approve", "ok", "sure", "proceed", "go ahead"]:
+        # Execute the transfer directly
+        result = execute_transfer(pending_transfer)
+        # Clear the pending transfer
+        conversation_data["pending_transfer"] = None
+        return result["message"]
+    
+    # If there's a pending transfer and the user's message looks like a rejection
+    if pending_transfer and message.lower() in ["no", "cancel", "reject", "stop", "don't", "dont"]:
+        # Clear the pending transfer
+        conversation_data["pending_transfer"] = None
+        return "Transfer cancelled. Is there anything else I can help you with?"
+
+    # Format chat history as a string
+    formatted_chat_history = ""
+    for msg in chat_history:
+        if isinstance(msg, HumanMessage):
+            formatted_chat_history += f"Human: {msg.content}\n"
+        elif isinstance(msg, AIMessage):
+            formatted_chat_history += f"Assistant: {msg.content}\n"
+
+    # Combine all inputs into a single dictionary
+    inputs = {
+        "input": message,  # The user's current message
+        "chat_history": formatted_chat_history,
+        "context": context,
+        "tools": "\n\n".join([f"{tool.name}: {tool.description}" for tool in tools]),
+        "tool_names": tool_names,
+        "user_id": user_id,
+        "agent_scratchpad": agent_scratchpad
+    }
+
+    # Run the agent
+    response = agent_executor.invoke(inputs)
+
+    # Update chat history
+    chat_history.append(HumanMessage(content=message))
+    chat_history.append(AIMessage(content=response["output"]))
+    
+    # Update scratchpad with intermediate steps
+    conversation_data["agent_scratchpad"] = response.get("intermediate_steps", "")
+    
+    return response["output"]
 
 def chat_test():
     print("\nGemini Chatbot (type 'exit' to quit)")
-    conversation = [SystemMessage(content="You are a helpful AI assistant.")]
+    conversation = make_conversation("user_123")
     
     while True:
         user_input = input("You: ")
@@ -275,93 +474,8 @@ def chat_test():
             print("Goodbye!")
             break
         
-        conversation.append(HumanMessage(content=user_input))
-        response = chat_model(conversation)
-        print("Gemini:", response.content)
-        
-        conversation.append(response)
-
-def extract_transfer_details(message):
-    """Extract transfer amount and recipient from message"""
-    # Amount extraction pattern (number + $ or number + dollars, etc.)
-    amount_pattern = r'(\d+)[\s]*(?:dollars|bucks|\$|\USD)'
-    
-    # Recipient extraction pattern (to + name or for + name, etc.)
-    recipient_pattern = r'(?:to|for)\s+([a-zA-Z\s]+)'
-    
-    amount_match = re.search(amount_pattern, message)
-    recipient_match = re.search(recipient_pattern, message)
-    
-    amount = float(amount_match.group(1)) if amount_match else None
-    recipient = recipient_match.group(1).strip() if recipient_match else None
-    
-    return amount, recipient
-
-def chat(conversation, message):
-    tools = [
-        search_history, 
-        get_user_info, 
-        get_wallet_info, 
-        search_user_by_name, 
-        verify_transfer_amount, 
-        transfer_money,
-        detect_fraud_keywords
-    ]
-    
-    agent = chat_model.bind_tools(tools)
-
-    conversation.append(HumanMessage(content=message))
-    response = agent.invoke(conversation)
-
-    if not response.content == "" and not response.tool_calls:
-        return response.content
-
-    if response.content == "" and response.tool_calls:
-        response.content = "Executing tool calls..."
-    conversation.append(response)
-
-    for tool_call in response.tool_calls:
-        selected_tool = {
-            "search_history": search_history,
-            "get_user_info": get_user_info,
-            "get_wallet_info": get_wallet_info,
-            "search_user_by_name": search_user_by_name,
-            "verify_transfer_amount": verify_transfer_amount,
-            "transfer_money": transfer_money,
-            "detect_fraud_keywords": detect_fraud_keywords
-        }[tool_call["name"].lower()]
-        tool_msg = selected_tool.invoke(tool_call)
-        conversation.append(tool_msg)
-        print(conversation[-1])
-
-    response = agent.invoke(conversation)
-
-    return response.content
+        response = chat(conversation, user_input)
+        print("Gemini:", response)
 
 if __name__ == "__main__":
-    # Main test selection
-    print("Select test mode:")
-    print("1. Chat conversation test")
-    print("2. Money transfer test")
-    choice = input("Selection (1 or 2): ")
-    
-    if choice == "1":
-        chat_test()
-    elif choice == "2":
-        user_id = input("Enter sender ID: ")
-        # Start test conversation
-        conversation = make_conversation(user_id)
-        
-        print("\nVirtual Bank AI Assistant (type 'exit' to quit)")
-        
-        while True:
-            user_input = input("User: ")
-            if user_input.lower() == "exit":
-                print("Exiting!")
-                break
-            
-            reply = chat(conversation, user_input)
-            print(f"AI: {reply}")
-    else:
-        print("Invalid selection. Exiting program.")
-
+    chat_test()

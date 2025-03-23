@@ -238,14 +238,24 @@ export default function AiChat({ userID }: AiChatProps) {
       }
 
       const data = await response.json();
+      
+      // Create AI message
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: data.response,
         sender: 'ai',
         timestamp: new Date(),
       };
-
+      
       setMessages((prev) => [...prev, aiMessage]);
+      
+      // Handle navigation if needed
+      if (data.navigate && data.route) {
+        // Navigate after a short delay
+        setTimeout(() => {
+          window.location.href = data.route;
+        }, 1500);
+      }
     } catch (error) {
       console.error('Error during AI chat:', error);
     }
