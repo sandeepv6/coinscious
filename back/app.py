@@ -5,8 +5,9 @@ import os
 from dotenv import load_dotenv
 import random
 import datetime
-from agent import chat
+from agent import chat, make_conversation
 from langchain.schema import SystemMessage
+from pinecone import Pinecone, ServerlessSpec
 
 load_dotenv()
 
@@ -20,10 +21,11 @@ supabase_key = os.getenv('ANON_SUPABASE_KEY')
 supabase = create_client(supabase_url, supabase_key)
 
 
+# ONLY SLIGHT BS
+pc = Pinecone(api_key=os.getenv('PINECONE_API_KEY'))
 
 # TRUE BULLSHIT
 conversations = {}
-
 
 
 
@@ -289,7 +291,7 @@ def get_chat_response(user_id):
     global conversatoins
 
     if user_id not in conversations:
-        conversations[user_id] = [SystemMessage(content="You are a helpful AI assistant in a bank app. You are an expert in finance and accounting. You reply as concisely as possible.")]
+        conversations[user_id] = make_conversation(user_id)
 
     conversation = conversations[user_id]
 
