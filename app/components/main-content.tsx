@@ -80,6 +80,7 @@ export default function MainContent({ userData, walletData }: { userData: any, w
   const [expenses, setExpenses] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showNotification, setShowNotification] = useState(false);
 
   useEffect(() => {
     const fetchTransactions = async () => {
@@ -136,18 +137,25 @@ export default function MainContent({ userData, walletData }: { userData: any, w
   const debitCard = walletData.payment_methods?.debit_cards?.[0] || { card_number: '0000' };
   const creditCard = walletData.payment_methods?.credit_cards?.[0] || { card_number: '0000' };
   
+  const handleBellClick = () => {
+    setShowNotification(true);
+    setTimeout(() => setShowNotification(false), 3000); // Auto-hide after 3 seconds
+  };
+
   return (
     <div className="flex-1 p-8 bg-gray-100 overflow-y-auto">
       <div className="max-w-3xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-2xl font-bold text-gray-800">Welcome back, {userData.first_name}</h2>
           <div className="flex items-center space-x-4">
-            <button className="p-2 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors">
+            <button onClick={handleBellClick} className="p-2 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors">
               <Bell size={20} className="text-gray-700" />
             </button>
-            <button className="p-2 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors">
-              <FileText size={20} className="text-gray-700" />
-            </button>
+            {showNotification && (
+              <div className="fixed top-20 right-1/2 transform translate-x-1/2 bg-orange-500 text-white shadow-lg rounded-lg p-4">
+                <p>No notifications currently</p>
+              </div>
+            )}
           </div>
         </div>
 
