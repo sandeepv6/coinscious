@@ -283,7 +283,7 @@ def get_user_wallet(user_id):
         return jsonify(response.data[0])
     return jsonify({"error": "Wallet not found"}), 404
 
-@app.route('/api/agent/<user_id>', methods=['GET'])
+@app.route('/api/agent/<user_id>', methods=['POST'])
 def get_chat_response(user_id):
 
     global conversatoins

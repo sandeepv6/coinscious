@@ -29,7 +29,7 @@ export default function Home() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    const balls = Array.from({ length: 0 }, () => ({
+    const balls = Array.from({ length: 2 }, () => ({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
       vx: (Math.random() - 0.5) * 2,

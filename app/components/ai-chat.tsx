@@ -46,7 +46,7 @@ export default function AiChat() {
     setInputValue(e.target.value);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
 
@@ -61,27 +61,32 @@ export default function AiChat() {
     setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
 
-    // Simulate AI response (in a real app, this would be an API call)
-    setTimeout(() => {
-      const aiResponses = [
-        "I can help you with that! What specific information do you need?",
-        "Based on your account history, I recommend reviewing your spending in the entertainment category.",
-        "Your current balance is $5,280.45. Would you like to see recent transactions?",
-        "I've analyzed your spending patterns. You might save money by consolidating your subscriptions.",
-        "Is there anything else you'd like to know about your banking options?"
-      ];
-      
-      const randomResponse = aiResponses[Math.floor(Math.random() * aiResponses.length)];
-      
+    // Send user message to backend and get AI response
+    try {
+      const response = await fetch(`http://localhost:5000/api/agent/${userMessage.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content: userMessage.content }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get AI response');
+      }
+
+      const data = await response.json();
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: randomResponse,
+        content: data.response,
         sender: 'ai',
         timestamp: new Date(),
       };
-      
+
       setMessages((prev) => [...prev, aiMessage]);
-    }, 1000);
+    } catch (error) {
+      console.error('Error during AI chat:', error);
+    }
   };
 
   return (
