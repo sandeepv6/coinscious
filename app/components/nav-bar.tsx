@@ -20,7 +20,7 @@ export default function NavBar() {
         { name: "Send Money", path: "/bank/send-money" }
       ]
     },
-    {
+/*     {
       title: "Documents",
       isOpen: true,
       items: [
@@ -29,7 +29,7 @@ export default function NavBar() {
         { name: "Tax Documents", path: "/bank/tax-docs" },
         { name: "Download History", path: "/bank/downloads" }
       ]
-    },
+    }, */
     {
       title: "Advice & Planning",
       isOpen: true,
