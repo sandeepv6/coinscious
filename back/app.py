@@ -24,6 +24,7 @@ supabase = create_client(supabase_url, supabase_key)
 # ONLY SLIGHT BS
 pc = Pinecone(api_key=os.getenv('PINECONE_API_KEY'))
 
+
 # TRUE BULLSHIT
 conversations = {}
 
