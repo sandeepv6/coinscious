@@ -10,7 +10,11 @@ type Message = {
   timestamp: Date;
 };
 
-export default function AiChat() {
+type AiChatProps = {
+  userID: string;
+};
+
+export default function AiChat({ userID }: AiChatProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -63,7 +67,7 @@ export default function AiChat() {
 
     // Send user message to backend and get AI response
     try {
-      const response = await fetch(`http://localhost:5000/api/agent/${userMessage.id}`, {
+      const response = await fetch(`http://localhost:5000/api/agent/${userID}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

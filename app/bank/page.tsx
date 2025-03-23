@@ -158,7 +158,7 @@ export default function BankPage() {
         <MainContent userData={userData} walletData={walletData} />
         <RightSidebar userData={userData} walletData={walletData} />
       </div>
-      <AiChat />
+      <AiChat userID={userData?.user_id} />
       
       {error && (
         <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-md">

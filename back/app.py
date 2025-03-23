@@ -288,7 +288,7 @@ def get_user_wallet(user_id):
 @app.route('/api/agent/<user_id>', methods=['POST'])
 def get_chat_response(user_id):
 
-    global conversatoins
+    global conversations
 
     if user_id not in conversations:
         conversations[user_id] = make_conversation(user_id)
