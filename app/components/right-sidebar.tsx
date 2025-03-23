@@ -91,7 +91,7 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
       window.location.reload();
     } catch (error) {
       console.error('Error during transfer:', error);
-      alert(`Transfer failed: ${error.message}`);
+      alert(`Transfer failed: ${error instanceof Error ? error.message : 'An unknown error occurred'}`);
     }
   };
 

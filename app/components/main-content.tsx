@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { CreditCard, DollarSign, ArrowRight, FileText, Bell, ChevronRight, Wallet, Clock, Shield } from 'lucide-react';
+import Link from 'next/link';
 
 type AccountCardProps = {
   title: string;
@@ -216,7 +217,9 @@ export default function MainContent({ userData, walletData }: { userData: any, w
         <div className="bg-white rounded-xl shadow-sm p-6 mb-8">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold text-gray-800">Recent Transactions</h3>
-            <button className="text-sm text-orange-500 hover:text-orange-600 font-medium">View All</button>
+            <Link href="/transactions" className="text-sm text-orange-500 hover:text-orange-600 font-medium">
+              View All
+            </Link>
           </div>
           
           {loading ? (
@@ -247,9 +250,9 @@ export default function MainContent({ userData, walletData }: { userData: any, w
                     </div>
                   </div>
                   <p className={`font-medium ${
-                    transaction.transaction_type === 'income' ? 'text-green-600' : 'text-red-600'
+                    transaction.amount > 0 ? 'text-green-600' : 'text-red-600'
                   }`}>
-                    {transaction.transaction_type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                    {formatCurrency(transaction.amount)}
                   </p>
                 </div>
               ))}

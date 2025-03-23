@@ -203,11 +203,11 @@ def create_transaction():
     sender_transaction = {
         'user_id': user_id,
         'description': transaction_data.get('description', 'Transfer to recipient'),
-        'amount': amount,
+        'amount': -amount,
         'category': transaction_data.get('category', 'transfer'),
         'payment_method': transaction_data.get('payment_method', 'debit'),
         'recipient': recipient_id,
-        'note': transaction_data.get('note', f'Transfer to user {recipient_id}'),
+        'note': 'Transfer to user {recipient_id}',
         'is_fraud': False
     }
     
@@ -227,7 +227,7 @@ def create_transaction():
         'category': transaction_data.get('category', 'transfer'),
         'payment_method': transaction_data.get('payment_method', 'debit'),
         'recipient': user_id,
-        'note': transaction_data.get('note', f'Transfer from user {user_id}'),
+        'note': 'Transfer from user {user_id}',
         'is_fraud': False
     }
     
