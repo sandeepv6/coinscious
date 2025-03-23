@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { CreditCard, DollarSign, ArrowRight, FileText, Bell, ChevronRight, Wallet, Clock, Shield } from 'lucide-react';
 import Link from 'next/link';
 import BudgetCard from './budget-card';
+import FinancialSummaryCard from './financial-summary-card';
 
 type AccountCardProps = {
   title: string;
@@ -150,6 +151,8 @@ export default function MainContent({ userData, walletData }: { userData: any, w
           </div>
         </div>
 
+        <FinancialSummaryCard />
+
         {/* Account Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <AccountCard
@@ -174,6 +177,8 @@ export default function MainContent({ userData, walletData }: { userData: any, w
           )}
 
           <BudgetCard title="Budget" />
+          
+          {/* Add the Financial Summary Card */}
         </div>
 
         {/* Income & Expenses */}
