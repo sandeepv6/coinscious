@@ -240,7 +240,7 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
       {/* Profile Card */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 rounded-full bg-gradient-to-r from-gradient-to-r from-orange-500 to-yellow-500 to-yellow-500 flex items-center justify-center text-white font-bold text-xl">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-r from-gradient-to-r from-orange-500 to-yellow-500 flex items-center justify-center text-white font-bold text-xl">
             {userData.first_name.charAt(0)}
           </div>
           <div className="flex-1">
