@@ -321,6 +321,110 @@ def get_user_transactions(user_id):
         return jsonify(response.data)
     return jsonify([])
 
+@app.route('/api/transactions/transfer', methods=['POST'])
+def transfer_between_users():
+    transfer_data = request.json
+    sender_id = transfer_data.get('sender_id')
+    recipient_id = transfer_data.get('recipient_id')
+    amount = float(transfer_data.get('amount'))
+    description = transfer_data.get('description', 'Transfer')
+    
+    # Check required fields
+    if not sender_id or not recipient_id or not amount:
+        return jsonify({"error": "Missing required fields (sender_id, recipient_id, amount)"}), 400
+    
+    # Check sender's wallet
+    sender_wallet_response = supabase.table('wallets').select('*').eq('user_id', sender_id).execute()
+    if not sender_wallet_response.data:
+        return jsonify({"error": "Sender wallet not found"}), 404
+    
+    sender_wallet = sender_wallet_response.data[0]
+    
+    # Check balance
+    if sender_wallet['debit_balance'] < amount:
+        return jsonify({"error": "Insufficient funds", "balance": sender_wallet['debit_balance'], "amount": amount}), 400
+    
+    # Check recipient's wallet
+    recipient_wallet_response = supabase.table('wallets').select('*').eq('user_id', recipient_id).execute()
+    if not recipient_wallet_response.data:
+        return jsonify({"error": "Recipient wallet not found"}), 404
+    
+    recipient_wallet = recipient_wallet_response.data[0]
+    
+    # Deduct amount from sender's wallet
+    supabase.table('wallets').update({
+        'debit_balance': sender_wallet['debit_balance'] - amount
+    }).eq('user_id', sender_id).execute()
+    
+    # Add amount to recipient's wallet
+    supabase.table('wallets').update({
+        'debit_balance': recipient_wallet['debit_balance'] + amount
+    }).eq('user_id', recipient_id).execute()
+    
+    # Create transaction record for sender
+    sender_transaction = {
+        'user_id': sender_id,
+        'description': description,
+        'amount': -amount,  # Negative amount (outgoing)
+        'category': 'transfer',
+        'payment_method': 'debit',
+        'recipient': recipient_id,
+        'note': f'Sent: {description}',
+        'is_fraud': False
+    }
+    
+    sender_response = supabase.table('transactions').insert(sender_transaction).execute()
+    
+    # Create transaction record for recipient
+    recipient_transaction = {
+        'user_id': recipient_id,
+        'description': description,
+        'amount': amount,  # Positive amount (incoming)
+        'category': 'transfer',
+        'payment_method': 'debit',
+        'recipient': sender_id,
+        'note': f'Received: {description}',
+        'is_fraud': False
+    }
+    
+    recipient_response = supabase.table('transactions').insert(recipient_transaction).execute()
+    
+    return jsonify({
+        "success": True,
+        "message": "Transfer successful",
+        "sender_transaction": sender_response.data[0] if sender_response.data else None,
+        "recipient_transaction": recipient_response.data[0] if recipient_response.data else None
+    })
+
+@app.route('/api/users/search', methods=['POST'])
+def search_users():
+    search_data = request.json
+    name = search_data.get('name', '')
+    
+    if not name:
+        return jsonify({"error": "Please enter a name to search for"}), 400
+    
+    # Search by name parts (case insensitive)
+    name_parts = name.lower().split()
+    
+    # Get all users
+    response = supabase.table('users').select('*').execute()
+    users = response.data
+    
+    # Filter by name
+    matching_users = []
+    for user in users:
+        full_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".lower()
+        
+        if any(part in full_name for part in name_parts):
+            matching_users.append({
+                'user_id': user.get('user_id'),
+                'first_name': user.get('first_name'),
+                'last_name': user.get('last_name'),
+                'email': user.get('email')
+            })
+    
+    return jsonify(matching_users)
 
 if __name__ == '__main__':
     app.run(debug=True)
