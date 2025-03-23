@@ -7,6 +7,7 @@ from supabase import create_client
 import re
 import json
 import requests
+from note_utils import get_notes
 load_dotenv()
 
 
@@ -208,7 +209,7 @@ def extract_transfer_details(message):
     
     return amount, recipient
 
-def chat(conversation, message):
+def chat(conversation, message, user_id):
     tools = [
         search_history, 
         get_user_info, 
@@ -220,6 +221,8 @@ def chat(conversation, message):
     
     agent = chat_model.bind_tools(tools)
 
+    notes = get_notes(user_id)
+    conversation.append(HumanMessage(content=notes))
     conversation.append(HumanMessage(content=message))
     response = agent.invoke(conversation)
 

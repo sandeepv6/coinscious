@@ -8,6 +8,7 @@ import datetime
 from agent import chat, make_conversation
 from langchain.schema import SystemMessage
 from pinecone import Pinecone, ServerlessSpec
+from note_utils import *
 
 load_dotenv()
 
@@ -200,6 +201,17 @@ def create_transaction():
     recipient_wallet = recipient_wallet_response.data[0]
     supabase.table('wallets').update({'debit_balance': recipient_wallet['debit_balance'] + amount}).eq('user_id', recipient_id).execute()
 
+    date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    sender_notes = get_notes(user_id)
+    sender_transaction = f"{date} | {transaction_data.get('description', 'Transfer to recipient')}: ${-amount}"
+    sender_note = make_note(sender_transaction, sender_notes)
+    new_sender_notes = update_notes(sender_transaction, sender_notes)
+    export_notes(new_sender_notes, user_id)
+    print("Old sender notes:\n-", "\n- ".join(sender_notes))
+    print(sender_transaction)
+    print("New sender notes:\n-", "\n- ".join(new_sender_notes))
+
     # Create transaction for sender (expense)
     sender_transaction = {
         'user_id': user_id,
@@ -208,7 +220,7 @@ def create_transaction():
         'category': transaction_data.get('category', 'transfer'),
         'payment_method': transaction_data.get('payment_method', 'debit'),
         'recipient': recipient_id,
-        'note': 'Transfer to user {recipient_id}',
+        'note': sender_note,
         'is_fraud': False
     }
     
@@ -220,6 +232,15 @@ def create_transaction():
         supabase.table('wallets').update({'debit_balance': recipient_wallet['debit_balance']}).eq('user_id', recipient_id).execute()
         return jsonify({"error": "Failed to create sender transaction"}), 500
 
+    receiver_notes = get_notes(recipient_id)
+    receiver_transaction = f"{date} | {transaction_data.get('description', 'Transfer from sender')}: ${amount}"
+    receiver_note = make_note(receiver_transaction, receiver_notes)
+    new_receiver_notes = update_notes(receiver_transaction, receiver_notes)
+    export_notes(new_receiver_notes, recipient_id)
+    print("Old receiver notes:\n-", "\n- ".join(receiver_notes))
+    print(receiver_transaction)
+    print("New receiver notes:\n-", "\n- ".join(new_receiver_notes))
+
     # Create transaction for recipient (income)
     recipient_transaction = {
         'user_id': recipient_id,
@@ -228,7 +249,7 @@ def create_transaction():
         'category': transaction_data.get('category', 'transfer'),
         'payment_method': transaction_data.get('payment_method', 'debit'),
         'recipient': user_id,
-        'note': 'Transfer from user {user_id}',
+        'note': 'receiver_note',
         'is_fraud': False
     }
     
@@ -299,7 +320,7 @@ def get_chat_response(user_id):
     message_info = request.json
     message = message_info.get("content")
 
-    reply = chat(conversation, message)
+    reply = chat(conversation, message, user_id)
 
     return jsonify({"response": reply})
   
@@ -361,6 +382,17 @@ def transfer_between_users():
         'debit_balance': recipient_wallet['debit_balance'] + amount
     }).eq('user_id', recipient_id).execute()
     
+    date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    sender_notes = get_notes(sender_id)
+    sender_transaction = f"{date} | {description}: ${-amount}"
+    sender_note = make_note(sender_transaction, sender_notes)
+    new_sender_notes = update_notes(sender_transaction, sender_notes)
+    export_notes(new_sender_notes, sender_id)
+    print("Old sender notes:\n-", "\n- ".join(sender_notes))
+    print(sender_transaction)
+    print("New sender notes:\n-", "\n- ".join(new_sender_notes))
+
     # Create transaction record for sender
     sender_transaction = {
         'user_id': sender_id,
@@ -375,6 +407,16 @@ def transfer_between_users():
     
     sender_response = supabase.table('transactions').insert(sender_transaction).execute()
     
+    receiver_notes = get_notes(recipient_id)
+    receiver_transaction = f"{date} | {description}: ${amount}"
+    receiver_note = make_note(receiver_transaction, receiver_notes)
+    new_receiver_notes = update_notes(receiver_transaction, receiver_notes)
+    export_notes(new_receiver_notes, recipient_id)
+    print("Old receiver notes:\n-", "\n- ".join(receiver_notes))
+    print(receiver_transaction)
+    print("New receiver notes:\n-", "\n- ".join(new_receiver_notes))
+
+
     # Create transaction record for recipient
     recipient_transaction = {
         'user_id': recipient_id,
