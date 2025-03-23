@@ -112,8 +112,8 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
     
     const amount = parseFloat(transferAmount);
     
-    // 금액이 1,000,000원 이상인 경우 경고 모달 표시
-    if (amount >= 1000000) {
+    // 금액이 1,000원 이상인 경우 경고 모달 표시
+    if (amount >= 1000) {
       const transaction = {
         user_id: userData.user_id,
         recipient_id: transferTo,
