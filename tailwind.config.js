@@ -18,6 +18,15 @@ module.exports = {
         sans: ['var(--font-geist-sans)'],
         mono: ['var(--font-geist-mono)'],
       },
+      keyframes: {
+        'bounce-once': {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-15px)' },
+        },
+      },
+      animation: {
+        'bounce-once': 'bounce-once 0.7s ease-in-out',
+      },
     },
   },
   plugins: [],

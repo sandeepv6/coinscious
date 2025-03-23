@@ -35,6 +35,8 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
   const [users, setUsers] = useState([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [spendingInsights, setSpendingInsights] = useState<{ [key: string]: number }>({});
+  const [showWarningModal, setShowWarningModal] = useState(false);
+  const [pendingTransaction, setPendingTransaction] = useState<any>(null);
   const [notifications, setNotifications] = useState([
     { id: 1, text: 'Your bill payment of $120.45 was successful', time: '2 hours ago' },
     { id: 2, text: 'New statement is available for your credit card', time: '1 day ago' },
@@ -108,21 +110,39 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
       return;
     }
     
-    try {
-      console.log("Selected recipient ID:", transferTo);
-      console.log("Transfer amount:", transferAmount);
-      
-      // Create a transaction
+    const amount = parseFloat(transferAmount);
+    
+    // 금액이 1,000,000원 이상인 경우 경고 모달 표시
+    if (amount >= 1000000) {
       const transaction = {
         user_id: userData.user_id,
         recipient_id: transferTo,
-        amount: parseFloat(transferAmount),
+        amount: amount,
         description: 'Quick Transfer',
         category: 'transfer',
         payment_method: 'debit',
         note: `Transfer to user ${transferTo}`
       };
+      
+      setPendingTransaction(transaction);
+      setShowWarningModal(true);
+      return;
+    }
+    
+    // 금액이 적은 경우 바로 이체 진행
+    await executeTransfer({
+      user_id: userData.user_id,
+      recipient_id: transferTo,
+      amount: amount,
+      description: 'Quick Transfer',
+      category: 'transfer',
+      payment_method: 'debit',
+      note: `Transfer to user ${transferTo}`
+    });
+  };
 
+  const executeTransfer = async (transaction: any) => {
+    try {
       console.log("Sending transaction data:", transaction);
 
       const response = await fetch('http://localhost:5000/api/transactions', {
@@ -138,16 +158,33 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
         throw new Error(errorData.error || 'Failed to create transaction');
       }
 
-      alert(`Transfer of $${transferAmount} to user ID ${transferTo} successful!`);
+      alert(`Transfer of $${transaction.amount} to user ID ${transaction.recipient_id} successful!`);
       setTransferAmount('');
       setTransferTo('');
+      
+      // 모달 닫기
+      setShowWarningModal(false);
+      setPendingTransaction(null);
       
       // Optionally refresh the page or update the wallet balance
       window.location.reload();
     } catch (error) {
       console.error('Error during transfer:', error);
       alert(`Transfer failed: ${error instanceof Error ? error.message : 'An unknown error occurred'}`);
+      setShowWarningModal(false);
+      setPendingTransaction(null);
     }
+  };
+
+  const handleConfirmTransfer = () => {
+    if (pendingTransaction) {
+      executeTransfer(pendingTransaction);
+    }
+  };
+
+  const handleCancelTransfer = () => {
+    setShowWarningModal(false);
+    setPendingTransaction(null);
   };
 
   const handleSignOut = () => {
@@ -157,6 +194,54 @@ export default function RightSidebar({ userData, walletData }: RightSidebarProps
 
   return (
     <div className="w-80 p-4 mr-4 my-4 space-y-6">
+      {/* 경고 모달 */}
+      {showWarningModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 md:p-0">
+          <div className="bg-white rounded-xl p-4 sm:p-6 w-full max-w-md mx-auto shadow-2xl animate-bounce-once relative overflow-hidden">
+            {/* 상단 경고 바 */}
+            <div className="absolute top-0 left-0 right-0 h-2 bg-red-500"></div>
+            
+            <div className="flex items-center mb-4 sm:mb-6">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-red-100 flex items-center justify-center mr-3 sm:mr-4 animate-pulse">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 sm:h-9 sm:w-9 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900">Warning: High-Value Transfer</h3>
+                <p className="text-xs sm:text-sm text-gray-500">Additional verification required</p>
+              </div>
+            </div>
+            
+            <div className="bg-red-50 p-3 sm:p-4 rounded-lg mb-4 sm:mb-6 border-l-4 border-red-500">
+              <p className="text-gray-800 mb-2 sm:mb-3 font-medium text-sm sm:text-base">
+                You are attempting to transfer <span className="font-bold text-red-600 text-base sm:text-lg">${pendingTransaction?.amount.toLocaleString()}</span>, which is a high-value amount.
+              </p>
+              <p className="text-gray-700 text-xs sm:text-sm">
+                • Please double-check that this amount is correct<br />
+                • Verify that you trust the recipient of this transfer<br />
+                • If you suspect fraud, cancel the transaction immediately
+              </p>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row-reverse gap-2 sm:gap-3">
+              <button
+                onClick={handleConfirmTransfer}
+                className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium text-sm sm:text-base"
+              >
+                Yes, Proceed
+              </button>
+              <button
+                onClick={handleCancelTransfer}
+                className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium text-sm sm:text-base"
+              >
+                No, Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Profile Card */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center space-x-4">
