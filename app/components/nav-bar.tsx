@@ -51,8 +51,9 @@ export default function NavBar() {
   return (
     <nav className="h-screen w-72 bg-gray-100 p-4 ml-4 my-4 rounded-xl shadow-sm">
       <div className="p-4 mb-4 bg-gray-800 rounded-lg shadow-md">
-        <Link href="/bank">
-            <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+        <Link href="/bank" className="flex items-center">
+          <img src="/logo.png" alt="Logo" className="w-12 h-12 mr-2" />
+          <h1 className="text-2xl font-bold text-white">Coinscious</h1>
         </Link>
       </div>
       
