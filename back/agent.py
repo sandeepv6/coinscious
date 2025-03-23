@@ -120,7 +120,7 @@ def verify_transfer_amount(user_id: str, amount: float):
     return f"Transfer is possible. Current balance: ${balance}, Transfer amount: ${amount}"
 
 @tool
-def transfer_money(sender_id: str, recipient_id: str, amount: float, description: str = "Transfer"):
+def transfer_money(sender_id: str, recipient_id: str, amount: float, description: str = "Transfer", confirm_fraud_check: bool = False):
     """Transfers money from one user to another.
 
     Args:
@@ -128,7 +128,21 @@ def transfer_money(sender_id: str, recipient_id: str, amount: float, description
         recipient_id: the recipient's user_id
         amount: the amount to transfer
         description: description of the transfer
+        confirm_fraud_check: confirm that fraud check has been performed and user wants to proceed (default: False)
     """
+    # 사기 감지 검사
+    if not confirm_fraud_check:
+        # 이전 거래 내역에서 수신인 확인
+        response = supabase.table('transactions').select('*').eq('user_id', sender_id).eq('recipient', recipient_id).execute()
+        is_known_recipient = len(response.data) > 0
+        
+        # 사기 감지 검사 실행
+        fraud_check = detect_fraud_keywords(description, amount, is_known_recipient)
+        
+        # 경고 메시지가 있는 경우 먼저 반환
+        if "위험 요소가 감지되지 않았습니다" not in fraud_check:
+            return f"{fraud_check}\n\n거래를 계속 진행하려면 confirm_fraud_check=True 매개변수와 함께 다시 호출하세요."
+    
     # 송금 API 호출을 위한 데이터 준비
     transfer_data = {
         'sender_id': sender_id,
@@ -151,6 +165,71 @@ def transfer_money(sender_id: str, recipient_id: str, amount: float, description
     except Exception as e:
         return f"Error during transfer: {str(e)}"
 
+@tool
+def detect_fraud_keywords(message: str, amount: float = 0, is_known_recipient: bool = True):
+    """Detect potential fraud by analyzing message content and transaction details.
+    
+    Args:
+        message: The message or transaction description to analyze
+        amount: The transfer amount (default: 0)
+        is_known_recipient: Whether the recipient is known to the user (default: True)
+    
+    Returns:
+        A string with fraud warning if detected, or confirmation that transaction appears legitimate
+    """
+    # 금액 관련 위험 요소 확인
+    amount_warning = None
+    if amount >= 1000:
+        amount_warning = f"• 고액 이체 경고: ${amount}는 고액 이체로 간주됩니다."
+    
+    # 수신인 관련 위험 요소 확인
+    recipient_warning = None
+    if not is_known_recipient:
+        recipient_warning = "• 낯선 수신인 경고: 이전에 거래 내역이 없는 수신인에게 이체하려고 합니다."
+    
+    # 의심스러운 키워드 목록
+    suspicious_keywords = [
+        "긴급", "urgent", "emergency", "즉시", "immediately",
+        "비밀", "secret", "confidential", "보안", "security",
+        "당첨", "lottery", "prize", "reward", "상금",
+        "투자", "investment", "수익", "return", "profit",
+        "선물", "gift", "카드", "card", "코드", "code",
+        "인증", "verification", "verify", "확인", "증명",
+        "세금", "tax", "환급", "refund", "return",
+        "당신만", "only you", "only for you", "special", "특별",
+        "지금", "now", "right now", "바로", "immediately",
+        "선불", "prepaid", "선입금", "deposit", "입금",
+        "문제", "problem", "issue", "해결", "solve",
+        "정부", "government", "공무원", "official", "공식"
+    ]
+    
+    # 메시지에서 의심스러운 키워드 찾기
+    found_keywords = []
+    for keyword in suspicious_keywords:
+        if keyword.lower() in message.lower():
+            found_keywords.append(keyword)
+    
+    keyword_warning = None
+    if found_keywords:
+        keyword_warning = f"• 의심 키워드 감지: '{', '.join(found_keywords)}' 같은 사기 의심 키워드가 포함되어 있습니다."
+    
+    # 경고 메시지 생성
+    warnings = []
+    if amount_warning:
+        warnings.append(amount_warning)
+    if recipient_warning:
+        warnings.append(recipient_warning)
+    if keyword_warning:
+        warnings.append(keyword_warning)
+    
+    if warnings:
+        warning_message = "🚨 **사기 거래 의심 경고** 🚨\n\n"
+        warning_message += "\n".join(warnings)
+        warning_message += "\n\n이체를 진행하기 전에 신중하게 확인하세요. 의심스러운 거래라면 즉시 취소하는 것이 좋습니다."
+        return warning_message
+    
+    return "이 거래는 위험 요소가 감지되지 않았습니다."
+
 def get_transac_hist(user_id):
     response = supabase.table('transactions').select('*').eq('user_id', user_id).order('created_at', desc=True).execute()
     transactions = response.data
@@ -165,13 +244,23 @@ def make_conversation(user_id):
     conversation = [
             SystemMessage(content=f"""You are a helpful AI assistant in a bank app. You are an expert in finance and accounting. 
 You reply as concisely as possible. The user's id is user_id='{user_id}'.
+
 For transfers, when the user asks to send money to someone (e.g., 'send $500 to my landlord'), follow these steps:
 1. First check if you understand who the recipient is. If not, ask for clarification.
 2. Search for the recipient using the search_user_by_name tool.
 3. If multiple users are found, ask the user to clarify which person they mean.
-4. Verify the sender has sufficient balance using verify_transfer_amount.
-5. If all conditions are met, confirm with the user before making the transfer.
-6. Use the transfer_money tool only after user confirmation.
+4. Use the detect_fraud_keywords tool to check for suspicious keywords, high amounts (≥$1000), or unknown recipients.
+5. If the fraud detection tool returns warnings, present them to the user and ask for confirmation before proceeding.
+6. Verify the sender has sufficient balance using verify_transfer_amount.
+7. If all conditions are met, confirm with the user before making the transfer.
+8. Use the transfer_money tool only after user confirmation and fraud check.
+
+When the user is asking questions about transactions or requesting a transfer:
+- Always be vigilant about potential fraud.
+- Use the detect_fraud_keywords tool if the message contains urgent requests, mentions of gifts, investments, lottery, or other suspicious keywords.
+- If the transfer amount is $1000 or more, emphasize that this is a large amount and ask for confirmation.
+- If the user is sending money to someone they haven't transacted with before, point this out as a potential risk.
+
 All responses should be in English."""),
             ]
     return conversation
@@ -215,7 +304,8 @@ def chat(conversation, message):
         get_wallet_info, 
         search_user_by_name, 
         verify_transfer_amount, 
-        transfer_money
+        transfer_money,
+        detect_fraud_keywords
     ]
     
     agent = chat_model.bind_tools(tools)
@@ -237,7 +327,8 @@ def chat(conversation, message):
             "get_wallet_info": get_wallet_info,
             "search_user_by_name": search_user_by_name,
             "verify_transfer_amount": verify_transfer_amount,
-            "transfer_money": transfer_money
+            "transfer_money": transfer_money,
+            "detect_fraud_keywords": detect_fraud_keywords
         }[tool_call["name"].lower()]
         tool_msg = selected_tool.invoke(tool_call)
         conversation.append(tool_msg)
