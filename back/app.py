@@ -426,5 +426,93 @@ def search_users():
     
     return jsonify(matching_users)
 
+@app.route('/api/budgets/<user_id>', methods=['GET'])
+def get_user_budgets(user_id):
+    """Get all budgets for a specific user"""
+    response = supabase.table('budget_plans').select('*').eq('user_id', user_id).execute()
+    
+    if response.data:
+        return jsonify(response.data)
+    return jsonify([])
+
+@app.route('/api/budgets', methods=['POST'])
+def create_budget():
+    """Create a new budget plan"""
+    budget_data = request.json
+    
+    # Validate required fields
+    required_fields = ['user_id', 'category', 'amount', 'period', 'start_date', 'end_date']
+    for field in required_fields:
+        if field not in budget_data:
+            return jsonify({"error": f"Missing required field: {field}"}), 400
+    
+    # Validate period value
+    if budget_data['period'] not in ['monthly', 'weekly']:
+        return jsonify({"error": "Period must be either 'monthly' or 'weekly'"}), 400
+    
+    # Insert the budget plan
+    response = supabase.table('budget_plans').insert(budget_data).execute()
+    
+    if not response.data:
+        return jsonify({"error": "Failed to create budget plan"}), 500
+    
+    return jsonify({
+        "success": True,
+        "message": "Budget plan created successfully",
+        "budget": response.data[0]
+    })
+
+@app.route('/api/budgets/<budget_id>', methods=['PUT'])
+def update_budget(budget_id):
+    """Update an existing budget plan"""
+    budget_data = request.json
+    
+    # Remove fields that shouldn't be updated
+    if 'id' in budget_data:
+        del budget_data['id']
+    
+    # Update the budget plan
+    response = supabase.table('budget_plans').update(budget_data).eq('id', budget_id).execute()
+    
+    if not response.data:
+        return jsonify({"error": "Failed to update budget plan or budget not found"}), 404
+    
+    return jsonify({
+        "success": True,
+        "message": "Budget plan updated successfully",
+        "budget": response.data[0]
+    })
+
+@app.route('/api/budgets/<budget_id>', methods=['DELETE'])
+def delete_budget(budget_id):
+    """Delete a budget plan"""
+    response = supabase.table('budget_plans').delete().eq('id', budget_id).execute()
+    
+    if not response.data:
+        return jsonify({"error": "Failed to delete budget plan or budget not found"}), 404
+    
+    return jsonify({
+        "success": True,
+        "message": "Budget plan deleted successfully"
+    })
+
+@app.route('/api/budgets/by-clerk/<clerk_id>', methods=['GET'])
+def get_user_budgets_by_clerk(clerk_id):
+    """Get all budgets for a user by their Clerk ID"""
+    # First find the user by clerk_id
+    user_response = supabase.table('users').select('user_id').eq('clerk_id', clerk_id).execute()
+    
+    if not user_response.data:
+        return jsonify([])  # User not found
+    
+    user_id = user_response.data[0]['user_id']
+    
+    # Then get their budgets
+    budget_response = supabase.table('budget_plans').select('*').eq('user_id', user_id).execute()
+    
+    if budget_response.data:
+        return jsonify(budget_response.data)
+    return jsonify([])
+
 if __name__ == '__main__':
     app.run(debug=True)

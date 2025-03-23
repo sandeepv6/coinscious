@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { CreditCard, DollarSign, ArrowRight, FileText, Bell, ChevronRight, Wallet, Clock, Shield } from 'lucide-react';
 import Link from 'next/link';
+import BudgetCard from './budget-card';
 
 type AccountCardProps = {
   title: string;
@@ -171,6 +172,8 @@ export default function MainContent({ userData, walletData }: { userData: any, w
               type="savings"
             />
           )}
+
+          <BudgetCard title="Budget" />
         </div>
 
         {/* Income & Expenses */}
