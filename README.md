@@ -31,7 +31,7 @@ This project serves as a **personal AI accountant and financial advisor** that f
 - **Frontend**: [Next.js](https://nextjs.org/) – for a responsive UI and chat experience  
 - **Backend**: [Flask](https://flask.palletsprojects.com/) – to handle AI logic and DB interactions  
 - **Database**: [Supabase](https://supabase.com/) – user profiles, transactions, wallets  
-- **AI Agent**: [LangChain](https://www.langchain.com/) + [Gemmini (GPT-3.5)](https://gemini.google.com/)  
+- **AI Agent**: [LangChain](https://www.langchain.com/) + [Gemmini (2.0 Flash)](https://gemini.google.com/)  
 - **Vector Search**: [Pinecone](https://www.pinecone.io/) – powers RAG for trend insights  
 - **Embedding & Retrieval**: Retrieval-Augmented Generation (RAG)
 
