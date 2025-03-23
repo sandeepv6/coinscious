@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Send, X } from 'lucide-react';
+import { MessageSquare, Send, X, Mic, MicOff } from 'lucide-react';
 
 type Message = {
   id: string;
@@ -14,6 +14,27 @@ type AiChatProps = {
   userID: string;
 };
 
+// Define a type for the SpeechRecognition API
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: (event: any) => void;
+  onerror: (event: any) => void;
+  onend: () => void;
+}
+
+// Define a global interface for the window object
+declare global {
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognition;
+    webkitSpeechRecognition: new () => SpeechRecognition;
+  }
+}
+
 export default function AiChat({ userID }: AiChatProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -25,15 +46,19 @@ export default function AiChat({ userID }: AiChatProps) {
     },
   ]);
   const [inputValue, setInputValue] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [messages, interimTranscript]);
 
   // Focus input when chat opens
   useEffect(() => {
@@ -42,12 +67,145 @@ export default function AiChat({ userID }: AiChatProps) {
     }
   }, [isOpen]);
 
+  // Clean up recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
+
   const toggleChat = () => {
     setIsOpen(!isOpen);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value);
+  };
+
+  const startRecording = () => {
+    if (isRecording) return;
+    
+    setErrorMessage(null);
+    
+    try {
+      // Check if browser supports speech recognition
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      
+      if (!SpeechRecognition) {
+        setErrorMessage('Speech recognition is not supported in your browser');
+        return;
+      }
+      
+      // Create a new recognition instance
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+      
+      // Configure recognition
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      
+      // Handle results
+      recognition.onresult = (event) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+        
+        // Update state with transcripts
+        if (finalTranscript) {
+          setInputValue((prev) => {
+            const trimmedPrev = prev.trim();
+            const trimmedTranscript = finalTranscript.trim();
+            return trimmedPrev ? `${trimmedPrev} ${trimmedTranscript}` : trimmedTranscript;
+          });
+        }
+        
+        setInterimTranscript(interimTranscript);
+      };
+      
+      // Handle errors
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        setErrorMessage(`Speech recognition error: ${event.error}`);
+        stopRecording();
+      };
+      
+      // Handle end of recognition
+      recognition.onend = () => {
+        // Only set recording to false if this is the current recognition instance
+        if (recognitionRef.current === recognition) {
+          setIsRecording(false);
+          
+          // Add any remaining interim transcript to the input
+          if (interimTranscript) {
+            setInputValue((prev) => {
+              const trimmedPrev = prev.trim();
+              const trimmedTranscript = interimTranscript.trim();
+              return trimmedPrev ? `${trimmedPrev} ${trimmedTranscript}` : trimmedTranscript;
+            });
+            setInterimTranscript('');
+            
+            // Automatically submit after a short delay
+            setTimeout(() => {
+              if (inputValue.trim() || interimTranscript.trim()) {
+                const formEvent = new Event('submit', { cancelable: true, bubbles: true }) as unknown as React.FormEvent;
+                handleSubmit(formEvent);
+              }
+            }, 300);
+          }
+        }
+      };
+      
+      // Start recognition
+      recognition.start();
+      setIsRecording(true);
+      
+    } catch (error) {
+      console.error('Error starting speech recognition:', error);
+      setErrorMessage('Failed to start speech recognition');
+      setIsRecording(false);
+    }
+  };
+
+  const stopRecording = () => {
+    if (!isRecording || !recognitionRef.current) return;
+    
+    try {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+      setIsRecording(false);
+      
+      // Add any remaining interim transcript to the input
+      if (interimTranscript) {
+        setInputValue((prev) => {
+          const trimmedPrev = prev.trim();
+          const trimmedTranscript = interimTranscript.trim();
+          return trimmedPrev ? `${trimmedPrev} ${trimmedTranscript}` : trimmedTranscript;
+        });
+        setInterimTranscript('');
+      }
+      
+      // Automatically submit the form after a short delay to allow state updates
+      setTimeout(() => {
+        if (inputValue.trim() || interimTranscript.trim()) {
+          const formEvent = new Event('submit', { cancelable: true, bubbles: true }) as unknown as React.FormEvent;
+          handleSubmit(formEvent);
+        }
+      }, 300);
+    } catch (error) {
+      console.error('Error stopping speech recognition:', error);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -144,9 +302,26 @@ export default function AiChat({ userID }: AiChatProps) {
                 </div>
               </div>
             ))}
+            
+            {/* Interim transcript */}
+            {interimTranscript && (
+              <div className="flex justify-end">
+                <div className="max-w-[80%] rounded-lg p-3 bg-orange-300 text-white rounded-tr-none italic">
+                  <p>{interimTranscript}</p>
+                </div>
+              </div>
+            )}
+            
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Error message */}
+          {errorMessage && (
+            <div className="text-center p-2 text-red-500 text-sm border-t border-gray-200">
+              {errorMessage}
+            </div>
+          )}
+          
           {/* Chat input */}
           <form onSubmit={handleSubmit} className="border-t border-gray-200 p-3 bg-white">
             <div className="flex items-center">
@@ -155,13 +330,22 @@ export default function AiChat({ userID }: AiChatProps) {
                 type="text"
                 value={inputValue}
                 onChange={handleInputChange}
-                placeholder="Type your message..."
+                placeholder={isRecording ? "Listening..." : "Type your message..."}
                 className="flex-1 border border-gray-300 rounded-l-lg py-2 px-3 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                disabled={isRecording}
               />
+              <button
+                type="button"
+                onClick={isRecording ? stopRecording : startRecording}
+                className={`p-2 ${isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'} text-white`}
+                title={isRecording ? "Stop recording" : "Start recording"}
+              >
+                {isRecording ? <MicOff size={20} /> : <Mic size={20} />}
+              </button>
               <button
                 type="submit"
                 className="bg-orange-500 text-white p-2 rounded-r-lg hover:bg-orange-600"
-                disabled={!inputValue.trim()}
+                disabled={!inputValue.trim() && !interimTranscript}
               >
                 <Send size={20} />
               </button>
