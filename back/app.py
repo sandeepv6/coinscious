@@ -8,6 +8,7 @@ import datetime
 from agent import chat, make_conversation
 from langchain.schema import SystemMessage
 from pinecone import Pinecone, ServerlessSpec
+from finance_summary_agent import generate_financial_summary, generate_summary_by_clerk_id
 
 load_dotenv()
 
@@ -513,6 +514,18 @@ def get_user_budgets_by_clerk(clerk_id):
     if budget_response.data:
         return jsonify(budget_response.data)
     return jsonify([])
+
+@app.route('/api/finance/summary/<user_id>', methods=['GET'])
+def get_financial_summary(user_id):
+    """Generate a financial summary for a user"""
+    summary = generate_financial_summary(user_id)
+    return jsonify(summary)
+
+@app.route('/api/finance/summary/clerk/<clerk_id>', methods=['GET'])
+def get_financial_summary_by_clerk(clerk_id):
+    """Generate a financial summary using Clerk ID"""
+    summary = generate_summary_by_clerk_id(clerk_id)
+    return jsonify(summary)
 
 if __name__ == '__main__':
     app.run(debug=True)
